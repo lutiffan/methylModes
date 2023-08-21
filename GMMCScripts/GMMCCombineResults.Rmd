@@ -1,0 +1,263 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+library(gridExtra)
+library(ggplot2)
+library(data.table)
+OUT_CUTT <- 0.1 # I chose this myself
+# These two from Hu & Li 2018
+MAX_STD = 0.1
+MIN_MEAN_DIFF = 0.2
+
+# Function to see breaks between classifications
+seeGMMC <- function(data, groups, classification, 
+                    colors = c("orange", "purple", "cyan", "darkred",
+                               "bisque4", "darkgoldenrod3", "aquamarine4",
+                               "coral2")) {
+
+  classRanges <- vector(mode = "list", length = length(groups))
+  
+  for (i in seq_along(classRanges)) {
+    inClass <- classification == groups[i]
+    classRanges[[i]] <- range(data[inClass])
+  }
+
+  hist(data, breaks = 50)
+  for (i in seq_along(groups)) {
+    abline(v = classRanges[[i]][1], col = colors[i], lwd = 2)
+    abline(v = classRanges[[i]][2], col = colors[i], lwd = 2)
+  }
+}
+```
+Load results after post-processing
+```{r}
+gmmcChild <- readRDS("/home/lutiffan/GMMCResults/gmmcChildPostProcessing.RDS")
+gmmcTeen <- readRDS("/home/lutiffan/GMMCResults/gmmcTeenPostProcessing.RDS")
+```
+Visualize cluster counts
+```{r}
+ggplot(data = gmmcChild, aes(optimalG)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -1)+
+  ggtitle(label = "Child data") 
+
+ggplot(data = gmmcTeen, aes(optimalG)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -1)+
+  ggtitle(label = "Teen data")
+```
+Spot check
+```{r}
+bimodalChildGMMC <- gmmcChild[gmmcChild$optimalG == 2,]
+trimodalChildGMMC <- gmmcChild[gmmcChild$optimalG == 3,]
+
+childBetas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasChildOnlyAutosomal.RDS")
+numBatches <- 11
+
+
+set.seed(7890)
+randomBMC <- matrix(sample(1:nrow(bimodalChildGMMC), size = 99, replace = FALSE),
+                    ncol = numBatches, nrow = 9)
+
+par(mfrow = c(3,3))
+for (i in 1:numBatches) {
+  for (j in 1:9) {
+    rowNum <- randomBMC[j,i]
+    probeId <- bimodalChildGMMC$probeId[rowNum]
+    probeData <- childBetas[which(rownames(childBetas) == probeId),]
+    seeGMMC(data = probeData, groups = 1:bimodalChildGMMC$optimalG[rowNum], 
+        classification = bimodalChildGMMC$classification[[rowNum]])
+  }
+  browser()
+}
+
+set.seed(7890)
+randomTMC <- matrix(sample(1:nrow(trimodalChildGMMC), size = 99, replace = FALSE),
+                    ncol = numBatches, nrow = 9)
+par(mfrow = c(3,3))
+for (i in 1:numBatches) {
+  for (j in 1:9) {
+    rowNum <- randomTMC[j,i]
+    probeId <- trimodalChildGMMC$probeId[rowNum]
+    probeData <- childBetas[which(rownames(childBetas) == probeId),]
+    seeGMMC(data = probeData, groups = 1:trimodalChildGMMC$optimalG[rowNum], 
+        classification = trimodalChildGMMC$classification[[rowNum]])
+  }
+  browser()
+}
+```
+Check consistency between time points
+```{r}
+sameCtoTGMMC <- intersect(gmmcChild$probeId, gmmcTeen$probeId)
+lostCtoTGMMC <- setdiff(gmmcChild$probeId, gmmcTeen$probeId)
+gainedCtoTGMMC <- setdiff(gmmcTeen$probeId, gmmcChild$probeId)
+
+length(sameCtoTGMMC) # 1198
+length(lostCtoTGMMC) # 903
+length(gainedCtoTGMMC) # 2267
+
+length(sameCtoTGMMC)/(length(unique(c(gmmcChild$probeId, gmmcTeen$probeId)))) # 0.274
+```
+Load child data with BIC selection criteria
+```{r}
+# childBetas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasChildOnlyAutosomal.RDS")
+# rangeStart = 1
+# rangeEnd = nrow(childBetas)
+# 
+# # Info about batches
+# rangeStart = 1
+# rangeEnd = nrow(childBetas)
+# numProbes <- rangeEnd
+# batchSize <- 50000
+# rangeStarts <- seq(1, numProbes, batchSize)
+# rangeEnds <- c(seq(batchSize, numProbes, batchSize), numProbes)
+# 
+# gmmcChild <- vector(mode = "list", length = length(rangeStarts))
+# for (i in seq_along(rangeStarts)) {
+#   filename <- paste0("/home/lutiffan/GMMCResults/", "child", "_", "BIC", "_",
+#                                format(rangeStarts[i], scientific = F),"_",
+#                                format(rangeEnds[i], scientific = F), ".RDS")
+#   print(filename)
+# 
+#   gmmcChild[[i]] <- readRDS(filename)
+# }
+# 
+# gmmcChild <- rbindlist(gmmcChild)
+# saveRDS(gmmcChild, "/home/lutiffan/GMMCResults/gmmcChild.RDS")
+gmmcChild <- readRDS("/home/lutiffan/GMMCResults/gmmcChild")
+```
+Child data post-processing steps
+```{r}
+# 1. If the fraction of the largest cluster is greater than 1 - OUT_CUTT, the mmCpG
+# will be excluded from further analysis
+largestClusterTooBig <- logical(nrow(gmmcChild))
+for (i in seq_along(largestClusterTooBig)) {
+  largestClusterTooBig[i] <- max(unlist(gmmcChild[i,]$sampleProportions)) > (1 - OUT_CUTT)
+}
+sum(largestClusterTooBig) # 85891
+gmmcChild <- gmmcChild[!largestClusterTooBig,]
+
+# 2. Samples within each cluster should have small variance
+clusterVarTooBig <- logical(nrow(gmmcChild))
+for (i in seq_along(clusterVarTooBig)) {
+  # Sometimes there will only be one estimated variance if the optimal model
+  # assumes equal variances across clusters. Then there might be NA in the
+  # result I saved
+  clusterVarTooBig[i] <- any(sqrt(na.omit(unlist(gmmcChild[i,]$sigmasq))[1]) > MAX_STD)
+}
+sum(clusterVarTooBig) # 34503
+gmmcChild <- gmmcChild[!clusterVarTooBig,]
+
+# 3. Finally, we require that cluster centers should be separable from each
+# other, which is controlled using a threshold
+clusterMeansTooClose <- logical(nrow(gmmcChild))
+for (i in seq_along(clusterMeansTooClose)) {
+  clusterMeansTooClose[i] <- any(diff(unlist(gmmcChild[i,]$means)) < MIN_MEAN_DIFF)
+}
+sum(clusterMeansTooClose) # 279050
+gmmcChild <- gmmcChild[!clusterMeansTooClose,]
+
+sum(gmmcChild$optimalG == 1)
+
+saveRDS(gmmcChild, "/home/lutiffan/GMMCResults/gmmcChildPostProcessing.RDS")
+```
+Load teen data with BIC selection criteria
+```{r}
+# teenBetas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasTeenOnlyAutosomal.RDS")
+# rangeStart = 1
+# rangeEnd = nrow(teenBetas)
+# 
+# # Info about batches
+# rangeStart = 1
+# rangeEnd = nrow(teenBetas)
+# numProbes <- rangeEnd
+# batchSize <- 50000
+# rangeStarts <- seq(1, numProbes, batchSize)
+# rangeEnds <- c(seq(batchSize, numProbes, batchSize), numProbes)
+# 
+# gmmcTeen <- vector(mode = "list", length = length(rangeStarts))
+# for (i in seq_along(rangeStarts)) {
+#   filename <- paste0("/home/lutiffan/GMMCResults/", "teen", "_", "BIC", "_",
+#                                format(rangeStarts[i], scientific = F),"_",
+#                                format(rangeEnds[i], scientific = F), ".RDS")
+#   print(filename)
+# 
+#   gmmcTeen[[i]] <- readRDS(filename)
+# }
+# 
+# gmmcTeen <- rbindlist(gmmcTeen)
+# saveRDS(gmmcTeen, "/home/lutiffan/GMMCResults/gmmcTeen.RDS")
+gmmcTeen <- readRDS("/home/lutiffan/GMMCResults/gmmcTeen")
+```
+Child data post-processing steps
+```{r}
+# 1. If the fraction of the largest cluster is greater than 1 - OUT_CUTT, the mmCpG
+# will be excluded from further analysis
+largestClusterTooBigT <- logical(nrow(gmmcTeen))
+for (i in seq_along(largestClusterTooBig)) {
+  largestClusterTooBigT[i] <- max(unlist(gmmcTeen[i,]$sampleProportions)) > (1 - OUT_CUTT)
+}
+sum(largestClusterTooBigT) # 70304
+gmmcTeen <- gmmcTeen[!largestClusterTooBigT,]
+
+# 2. Samples within each cluster should have small variance
+clusterVarTooBigT <- logical(nrow(gmmcTeen))
+for (i in seq_along(clusterVarTooBigT)) {
+  # Sometimes there will only be one estimated variance if the optimal model
+  # assumes equal variances across clusters. Then there might be NA in the
+  # result I saved
+  clusterVarTooBigT[i] <- any(sqrt(na.omit(unlist(gmmcTeen[i,]$sigmasq))[1]) > MAX_STD)
+}
+sum(clusterVarTooBigT) # 34954
+gmmcTeen <- gmmcTeen[!clusterVarTooBigT,]
+
+# 3. Finally, we require that cluster centers should be separable from each
+# other, which is controlled using a threshold
+clusterMeansTooCloseT <- logical(nrow(gmmcTeen))
+for (i in seq_along(clusterMeansTooCloseT)) {
+  clusterMeansTooCloseT[i] <- any(diff(unlist(gmmcTeen[i,]$means)) < MIN_MEAN_DIFF)
+}
+sum(clusterMeansTooCloseT) # 292822
+gmmcTeen <- gmmcTeen[!clusterMeansTooCloseT,]
+
+sum(gmmcTeen$optimalG == 1)
+
+saveRDS(gmmcTeen, "/home/lutiffan/GMMCResults/gmmcTeenPostProcessing.RDS")
+```
+Post-processing for old data structure
+```{r}
+# multiModal <- gmmcChild[gmmcChild$optimalG > 1,]
+# 
+# # If the fraction of the largest cluster is greater than 1 - OUT_CUTT, the mmCpG
+# # will be excluded from further analysis
+# largestClusterTooBig <- logical(nrow(multiModal))
+# for (i in 1:nrow(multiModal)) {
+#   groupFractions <- as.numeric(table(multiModal[i,]$classification)/length(multiModal[i,]$classification[[1]]))
+#   largestClusterTooBig[i] <- max(groupFractions) > (1 - OUT_CUTT)
+# }
+# sum(largestClusterTooBig)
+# multiModal <- multiModal[!largestClusterTooBig,]
+# # multiModal <- multiModal[largestClusterTooBig == 0,]
+# 
+# # Samples within each cluster should have small variance
+# clusterVarTooBig <- logical(nrow(multiModal))
+# for (i in 1:nrow(multiModal)) {
+#   # if (any(is.na(multiModal[i,]$sigmasq[[1]]))) browser()
+#   clusterVarTooBig[i] <- any(sqrt(multiModal[i,]$sigmasq[[1]]) > MAX_STD, na.rm = TRUE)
+# }
+# sum(clusterVarTooBig)
+# multiModal <- multiModal[!clusterVarTooBig,]
+# 
+# # Finally, we require that cluster centers should be separable from each other,
+# # which is controlled using a threshold
+# clustersTooClose <- logical(nrow(multiModal))
+# for (i in 1:nrow(multiModal)) {
+#   clustersTooClose[i] <- any(diff(sort(multiModal[i,]$means[[1]])) < MIN_MEAN_DIFF)
+# }
+# sum(clustersTooClose)
+# multiModal <- multiModal[!clustersTooClose]
+```
+

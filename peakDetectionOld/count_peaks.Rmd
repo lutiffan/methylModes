@@ -1,0 +1,389 @@
+---
+title: "MaxHunter"
+output: html_document
+date: "2023-06-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+```
+Read in the beta matrix via RDS
+```{r}
+setwd("/nfs/turbo/bakulski1/People/data/ffcw/methyl_data/Feb2022_datafreeze")
+betaFileName <- "beta_analytic_freeze1.rds" # file.choose()
+startrds <- Sys.time()
+betas <- readRDS(betaFileName) # 5.9 GB
+rdstime = Sys.time() - startrds; rdstime
+# Time difference of 41.2518 secs
+```
+SKIP THIS CHUNK FOR NOW
+Try to reformat the data for downstream efficiency
+```{r}
+# betas <- as.data.table(betas, keep.rownames = TRUE)
+# getwd() # Look before you leap!
+# fwrite(betas, file = "beta_matrix.csv")
+
+startfread <- Sys.time()
+betas <- fread("/home/lutiffan/beta_matrix.csv")
+freadtime = Sys.time() - startfread; freadtime
+# It takes over a minute the first time you run fread()
+# But then it gets faster?
+# Time difference of 28.84002 secs (ratio = 0.7)
+
+# TODO: try fst package
+
+# Transpose
+# ttime <- Sys.time()
+# tbetas <- transpose(betasTable) 
+# Sys.time() - ttime
+```
+A function to detect local maxima following kernel density estimation of beta values.
+```{r}
+# https://stackoverflow.com/questions/6836409/finding-local-maxima-and-minima
+
+localMaxima <- function(x, zeroThreshold) {
+  x <- ifelse(x < zeroThreshold, 0, x)
+  # Use -Inf instead if x is numeric (non-integer)
+  #y <- diff(c(-.Machine$integer.max, x)) > 0L
+  y <- diff(c(-Inf, x)) > 0L
+  
+  # rle(y)$lengths
+  y <- cumsum(rle(y)$lengths)
+  y <- y[seq.int(1L, length(y), 2L)]
+  if (x[[1]] == x[[2]]) {
+    y <- y[-1]
+  }
+  y
+}
+```
+Test cases for localMaxima(). Numbers refer to row numbers of beta matrix.
+```{r}
+# A unimodal probe in the middle of 0 and 1
+density206677 <- density(betas[206677,], n = 500, from = 0, to = 1, adjust = 1.5)
+maxIndex206677 <- localMaxima(density206677$y, 1/ncol(betas))
+maxBetas206677 <- density206677$x[maxIndex206677]
+maxFitted206677 <- density206677$y[maxIndex206677]
+plot(density206677$x, density206677$y)
+points(maxBetas206677, maxFitted206677, col = "red", pch=19, 
+         cex=1.25)
+
+# A bimodal probe clustered near 1
+density208801 <- density(betas[208801,], n = 500, from = 0, to = 1, adjust = 1.5)
+maxIndex208801 <- localMaxima(density208801$y, 1/ncol(betas))
+maxBetas208801 <- density208801$x[maxIndex208801]
+maxFitted208801 <- density208801$y[maxIndex208801]
+plot(density208801$x, density208801$y)
+points(maxBetas208801, maxFitted208801, col = "red", pch=19, 
+         cex=1.25)
+
+```
+A function to wrap localMaxima() and optionally display a plot of detected peaks.
+```{r}
+maxHunter <- function(probeBetas, betaBreaks = 500, densityAdjust = 1.5, 
+                      zeroThreshold, show.plot = FALSE, titleProbeNum = "Needs probe number") {
+  densityEst <- density(probeBetas, n = betaBreaks, from = 0, to = 1, 
+                        adjust = densityAdjust)
+  maxIndex <- localMaxima(densityEst$y, zeroThreshold)
+  maxBetas <- densityEst$x[maxIndex] # beta value of peak (from 0 to 1)
+  maxFitted <- densityEst$y[maxIndex] # peak value (how high is it)
+  
+  if (show.plot) {
+    plot(densityEst$x, densityEst$y, main = paste0("Kernel Density Est. of Probe in row ", titleProbeNum))
+    points(maxBetas, maxFitted, col = "red", pch = 19, cex = 1.25)
+    return(list("betas" = maxBetas, "fitted" = maxFitted))
+  }
+  list("betas" = maxBetas, "fitted" = maxFitted)
+  # Do we also want to know about the variance around peaks? Hmm
+}
+```
+Test maxHunter
+```{r}
+# unimodal
+maxHunter(betas[206677,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+# rough in the middle
+maxHunter(betas[410978,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+# We smooth it out with the adjusted params, but we miss a tiny bump in the middle (TODO)
+maxHunter(betas[410978,], zeroThreshold = 0.5, densityAdjust = 2, show.plot = TRUE) 
+# bimodal
+maxHunter(betas[208801,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+# bimodal, almost invariant? (TODO). Really messy with default parameters
+maxHunter(betas[29932,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+maxHunter(betas[29932,], zeroThreshold = 0.5, show.plot = TRUE, densityAdjust = 3) # This sort of fixes it.
+hist(betas[29932,], breaks = 200, xlim = c(0,1))
+mean(betas[29932,] > 0.7)
+# unimodal. close to zero but not too close
+maxHunter(betas[113220,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+mean(betas[113220,] < 0.3)
+# trimodal with a really short peak close to 1
+maxHunter(betas[179171,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+
+# We pick up really tiny peaks. Do we care?
+# Try messing with values that we squash to zero
+maxHunter(betas[429812,], zeroThreshold = 1/ncol(betas), show.plot = TRUE)
+maxHunter(betas[429812,], zeroThreshold = 0.5, show.plot = TRUE)
+
+# Density gets weird if most points are close to zero or one
+# Try messing with "adjust" parameter
+# densityAdjust = 3 seems to do a good job of smoothing graphs for 
+# invariant CpG sites
+maxHunter(betas[154714,], zeroThreshold = 0.5, densityAdjust = 3, show.plot = TRUE)
+
+maxHunter(betas[429300,], zeroThreshold = 0.5, densityAdjust = 3, show.plot = TRUE)
+
+
+```
+Idea: run maxHunter in a conditional way. Once set of parameters for invariant sites (choose threshold) and again for all the sites in-between.
+```{r}
+betaSummary <- matrix(nrow = nrow(betas), ncol = 3)
+colnames(betaSummary) <- c("hypo", "mid", "hyper")
+
+threshold <- 0.1 # hypomethylation is beta < 0.3, but threshold of 0.3 doesn't do a good job
+
+for (i in 1:nrow(betas)) {
+  hypo <- mean(betas[i,] < threshold)
+  hyper <- mean(betas[i,] > 1 - threshold)
+  mid <- 1 - hypo - hyper
+  betaSummary[i,] <- c(hypo, mid, hyper)
+}
+
+invariant <- (betaSummary[,1] > 0.90 | betaSummary[,3] > 0.90)
+
+peakSummary <- data.table("numPeaks" = numeric(nrow(betas)), 
+                          "peakBetas" = vector(mode = "list", 
+                                              length = nrow(betas)),
+                          "peakFittedValue" = vector(mode = "list", 
+                                              length = nrow(betas)))
+
+set.seed(99)
+probeSample <- sample(1:nrow(betas), 20)
+
+# Test on some random probes
+for (j in seq_along(probeSample)) {
+  i <- probeSample[j]
+  
+  #browser()
+  if (invariant[i]) {
+    hist(betas[i,], breaks = 200, xlim = c(0,1), probability = TRUE, 
+       main = paste0("Histogram of probe in row ", i, " (invariant)"))
+    peaks <- maxHunter(probeBetas = betas[i,], densityAdjust = 3, zeroThreshold = 0.5, show.plot = TRUE, titleProbeNum = i)
+  } else {
+    hist(betas[i,], breaks = 200, xlim = c(0,1), probability = TRUE, 
+       main = paste0("Histogram of probe in row ", i))
+    peaks <- maxHunter(probeBetas = betas[i,], zeroThreshold = 0.08, show.plot = TRUE, titleProbeNum = i)
+  }
+  
+  #browser()
+  peakSummary[i, numPeaks := length(peaks[[1]])]
+  peakSummary[i, peakBetas := list(peaks$betas)]
+  peakSummary[i, peakFittedValue := list(peaks$fitted)]
+}
+
+# Interesting probes
+# 261654: four modes?? set zerothreshold = 0.08
+```
+Now try running on a bunch to see how long it takes
+```{r}
+startTime <- Sys.time()
+for (i in 1:nrow(betas)) {
+  
+  #browser()
+  if (invariant[i]) {
+    # hist(betas[i,], breaks = 200, xlim = c(0,1), probability = TRUE, 
+    #    main = paste0("Histogram of probe in row ", i, " (invariant)"))
+    peaks <- maxHunter(probeBetas = betas[i,], densityAdjust = 3, 
+                      zeroThreshold = 0.5, show.plot = FALSE, titleProbeNum = i)
+  } else {
+    # hist(betas[i,], breaks = 200, xlim = c(0,1), probability = TRUE, 
+    #    main = paste0("Histogram of probe in row ", i))
+    peaks <- maxHunter(probeBetas = betas[i,], zeroThreshold = 0.08, show.plot = FALSE, titleProbeNum = i)
+  }
+  
+  #browser()
+  peakSummary[i, numPeaks := length(peaks[[1]])]
+  peakSummary[i, peakBetas := list(peaks$betas)]
+  peakSummary[i, peakFittedValue := list(peaks$fitted)]
+}
+
+endTime <- Sys.time() - startTime
+endTime # Running all probes should take ~20 minutes
+```
+Summarize
+```{r}
+peakCounts <- peakSummary[1:1000] %>% count(numPeaks)
+barplot(peakCounts$n ~ peakCounts$numPeaks)
+
+```
+Implementation 2 functions
+```{r}
+# Assume input data is not all slope == 0
+localMinMax <- function(fitted, zeroThreshold = 0.01) {
+  # Testing: try different datasets
+  # fitted <- density4Peak$y; zeroThreshold = 1/100 
+  # fitted <- density4PeakInv$y; zeroThreshold = 1/100 
+  fitted <- ifelse(fitted < zeroThreshold, 0, fitted)
+  
+  # Cases:
+  # 1. If line increasing at start, plusMinus will be TRUE TRUE...
+  # until we reach the first stationary point to the right
+  
+  # 2. If line decreasing/flat at start, plusMinus will be TRUE FALSE ... 
+  # detect stationary point at index == 1
+  # When slope is no longer zero, we will incorrectly detect a stationary point
+  
+  # this code cannot distinguish between negative slope and slope of zero
+  plusMinus <- diff(c(-Inf, fitted)) > 0L
+  
+  # Find indices where the sign of the slope changes
+  slopeZero <- cumsum(rle(plusMinus)$lengths); slopeZero
+  
+  if (length(slopeZero) == 1) {
+    return(list("maximaIdx" = slopeZero, "minimaIdx" = c(1, 500)))
+  }
+  
+  # browser()
+  
+  # 1. First slope sign change is a max
+  # 2. First (artificial) slope sign change is a max and is located at index == 1
+  # 3. First (artificial) slope sign change is just artificial. Second sign change is an inflection point
+  whereMax <- seq.int(1L, length(slopeZero), 2L)
+  # version 1
+  # whereMin <- -whereMax
+  
+  # version 2: make these indices positive
+  whereMin <- (1:length(slopeZero))[-whereMax] 
+  
+  # Case 3: Line starts out flat
+  if (fitted[[1]] == fitted[[2]]) { 
+    # Skip artificial first slope sign change (since we start from -Inf)
+    whereMax <- whereMax[-1] 
+    
+    # Skip inflection point
+    # version 1
+    # whereMin <- c(-2, whereMin) 
+    
+    # version 2
+    whereMin <- whereMin[-1]
+    
+    # Maybe not a good idea
+    # slopeZero <- slopeZero[-2]
+  }
+  # # version 1
+  # maxes <- slopeZero[whereMax]
+  # mins <- slopeZero[whereMin]
+  # 
+  # return(list("maximaIdx" = maxes, "minimaIdx" = mins))
+  
+  # version 2
+  # return(list("slopeZero" = slopeZero, "maximaIdx" = whereMax,
+  # "minimaIdx" = whereMin))
+  
+  # version 3
+  leftMin <- whereMax - 1
+  if (leftMin[1] == 0) leftMin[1] = 1
+  
+  rightMin <- whereMax + 1
+  if (rightMin[length(rightMin)] > length(slopeZero)) {
+    rightMin[length(rightMin)] = length(slopeZero)
+  } 
+  
+  data.frame("peakIdx" = slopeZero[whereMax], "leftMinIdx" = slopeZero[leftMin], 
+             "rightMinIdx" = slopeZero[rightMin])
+}
+```
+Implementation 2 test data
+```{r}
+# Choose a weird distribution as test case
+strangeIdx <- 261654 # 238564
+testBetas <- betas[strangeIdx,]
+testDensity <- density(testBetas, from = 0, to = 1, n = 500, 
+                       bw = bw.SJ(betas[strangeIdx,]), adjust = 2)
+```
+Run tests
+```{r}
+testminmax <- localMinMax(testDensity$y); testminmax
+
+# # Plot maxima and minima/inflection points
+# hist(betas[strangeIdx,], breaks = 500, xlim = c(0,1), probability = TRUE,
+#      main = paste0("Histogram of betas of probe # ", strangeIdx, " (", rownames(betas)[strangeIdx], ")"),
+#      xlab = "Beta",
+#      ylab = "Probability density")
+# lines(testDensity, col = "orchid", lwd = 2, pch = 19)
+# points(testDensity$x[testminmax$maximaIdx], testDensity$y[testminmax$maximaIdx], col = "red", pch = 19, cex = 1.25)
+# points(testDensity$x[testminmax$minimaIdx], testDensity$y[testminmax$minimaIdx], col = "blue", pch = 19, cex = 1.25)
+
+# Plot maxima and minima/inflection points
+hist(betas[strangeIdx,], breaks = 500, xlim = c(0,1), probability = TRUE,
+     main = paste0("Histogram of betas of probe # ", strangeIdx, " (", rownames(betas)[strangeIdx], ")"),
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(testDensity, col = "orchid", lwd = 2, pch = 19)
+points(testDensity$x[testminmax$slopeZero[testminmax$maximaIdx]], testDensity$y[testminmax$slopeZero[testminmax$maximaIdx]], col = "red", pch = 19, cex = 1.25)
+points(testDensity$x[testminmax$slopeZero[testminmax$minimaIdx]], testDensity$y[testminmax$slopeZero[testminmax$minimaIdx]], col = "blue", pch = 19, cex = 1.25)
+
+maximaIdx <- testminmax$slopeZero[testminmax$maximaIdx]; maximaIdx
+minimaIdx <- testminmax$slopeZero[testminmax$minimaIdx]; minimaIdx
+
+testminmax$slopeZero[max(testminmax$maximaIdx[1] - 1, 1)]
+testminmax$slopeZero[min(testminmax$maximaIdx[1] + 1, 500)]
+```
+Filtering based on size of peak
+```{r}
+#### ONLY DO THIS IF THERE IS MORE THAN ONE PEAK ####
+if (length(testminmax$maximaIdx) > 1) {
+  peaks <- testminmax$maximaIdx
+  breaks = testminmax$minimaIdx
+  if (breaks[1] != 1) breaks <- c(1, breaks)
+  if (breaks[length(breaks)] != 500) breaks <- c(breaks, 500)
+  
+  cutoff <- 0.01
+  # Show peak sample size
+  #aboveCutoff <- hist(testBetas, breaks = testDensity$x[breaks], freq = FALSE, plot = TRUE)$count/length(betas[strangeIdx,]) > cutoff
+  # Skip plotting
+  aboveCutoff <- hist(testBetas, breaks = testDensity$x[breaks], freq = FALSE, plot = TRUE)$count/length(betas[strangeIdx,]) > cutoff
+  aboveCutoff
+  filtered <- peaks[aboveCutoff]
+}
+
+# Plot detected peaks after filtering
+hist(betas[strangeIdx,], breaks = 500, xlim = c(0,1), freq = FALSE, 
+     main = paste0("Histogram of betas of probe # ", strangeIdx, " (", rownames(betas)[strangeIdx], ")"),
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(testDensity, col = "orchid", lwd = 2, pch = 19)
+points(testDensity$x[filtered], testDensity$y[filtered], col = "red", pch = 19, cex = 1.25)
+points(testDensity$x[testminmax$minimaIdx], testDensity$y[testminmax$minimaIdx], col = "blue", pch = 19, cex = 1.25)
+```
+Eliminate short peaks too close to other peaks
+```{r}
+#### ONLY DO THIS IF THERE IS ANY CROWDING ####
+if (sum(diff(testDensity$x[filtered]) < 0.1) > 0) {
+  finalPeaks <- filtered
+  
+  for (i in seq_along(finalPeaks)) {
+    currentPeak <- finalPeaks[i]
+    if (currentPeak == 0) next # Skip if already deactivated
+    
+    isNeighbor <- finalPeaks != currentPeak &
+                            finalPeaks > currentPeak - 50 & 
+                            finalPeaks < currentPeak + 50
+    
+    neighbors <- finalPeaks[isNeighbor]
+    shorter <- density4Peak$y[finalPeaks] < density4Peak$y[currentPeak]
+    suppressWarnings(finalPeaks[isNeighbor & shorter] <- 0)
+  }
+  
+  finalPeaks <- finalPeaks[finalPeaks != 0]; finalPeaks
+  
+  hist(betas[strangeIdx,], breaks = 500, xlim = c(0,1), freq = FALSE, 
+     main = paste0("Histogram of betas of probe # ", strangeIdx, " (", rownames(betas)[strangeIdx], ")"),
+     xlab = "Beta",
+     ylab = "Probability density")
+  lines(testDensity, col = "orchid", lwd = 2, pch = 19)
+  points(testDensity$x[finalPeaks], testDensity$y[finalPeaks], col = "red", pch = 19, cex = 1.25)
+}
+
+
+```
+

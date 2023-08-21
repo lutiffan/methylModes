@@ -1,0 +1,420 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(data.table)
+library(tidyverse)
+source("/home/lutiffan/visualize/visualizeBetaPeaks.R")
+source("/home/lutiffan/peakDetectionScripts/standardParams.R")
+```
+Load the beta matrix
+```{r}
+childBetas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasChildOnlyAutosomal.RDS")
+teenBetas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasTeenOnlyAutosomal.RDS")
+
+betas <- childBetas
+# Setting these parameters for debugging purposes
+rangeStart = 1
+rangeEnd = nrow(betas)
+```
+Enter info about batch sizes and parameters
+```{r}
+numProbes <- rangeEnd
+batchSize <- 50000
+rangeStarts <- seq(1, numProbes, batchSize)
+rangeEnds <- c(seq(batchSize, numProbes, batchSize), numProbes)
+
+# proportionSample
+props <- 0.01
+# personalSpace
+pers <- 0.1
+```
+Find the files and read them
+```{r}
+# Make sure results are the same after a minor code change
+# peakSummaryBatchesNoGap <- vector(mode = "list", length = length(rangeStarts))
+# for (i in seq_along(rangeStarts)) {
+#   filename <- paste0("/home/lutiffan/sensitivityAnalysis/peakSummary_noCR_child_autosomal_",
+#                      gsub('\\.', '_', props), "_space_",
+#                      gsub('\\.', '_', pers), "_start_",
+#                      format(rangeStarts[i], scientific = F), "_end_", 
+#                      format(rangeEnds[i], scientific = F), ".RDS")
+#   
+#   peakSummaryBatchesNoGap[[i]] <- readRDS(filename)
+# }
+
+# # Child data
+# peakSummaryChild <- vector(mode = "list", length = length(rangeStarts))
+# for (i in seq_along(rangeStarts)) {
+#   filename <- paste0("/home/lutiffan/sensitivityAnalysis/peakSummary_noCR_child_autosomal_",
+#                      gsub('\\.', '_', props), "_space_",
+#                      gsub('\\.', '_', pers), "_start_",
+#                      format(rangeStarts[i], scientific = F), "_end_",
+#                      format(rangeEnds[i], scientific = F), ".RDS")
+# 
+#   peakSummaryChild[[i]] <- readRDS(filename)
+# }
+# 
+# # Teen data
+# peakSummaryTeen <- vector(mode = "list", length = length(rangeStarts))
+# for (i in seq_along(rangeStarts)) {
+#   filename <- paste0("/home/lutiffan/sensitivityAnalysis/peakSummary_noCR_teen_autosomal_",
+#                      gsub('\\.', '_', props), "_space_",
+#                      gsub('\\.', '_', pers), "_start_",
+#                      format(rangeStarts[i], scientific = F), "_end_", 
+#                      format(rangeEnds[i], scientific = F), ".RDS")
+#   
+#   peakSummaryTeen[[i]] <- readRDS(filename)
+# }
+
+# Child data
+peakSummaryChild <- vector(mode = "list", length = length(rangeStarts))
+for (i in seq_along(rangeStarts)) {
+  filename <- paste0("/home/lutiffan/peakDetectionResults/peakSummary_child_autosomal_",
+                     gsub('\\.', '_', props), "_space_",
+                     gsub('\\.', '_', pers), "_start_",
+                     format(rangeStarts[i], scientific = F), "_end_",
+                     format(rangeEnds[i], scientific = F), ".RDS")
+
+  peakSummaryChild[[i]] <- readRDS(filename)
+}
+
+# Teen data
+peakSummaryTeen <- vector(mode = "list", length = length(rangeStarts))
+for (i in seq_along(rangeStarts)) {
+  filename <- paste0("/home/lutiffan/peakDetectionResults/peakSummary_teen_autosomal_",
+                     gsub('\\.', '_', props), "_space_",
+                     gsub('\\.', '_', pers), "_start_",
+                     format(rangeStarts[i], scientific = F), "_end_", 
+                     format(rangeEnds[i], scientific = F), ".RDS")
+  
+  peakSummaryTeen[[i]] <- readRDS(filename)
+}
+```
+Combine
+```{r}
+# peakSummaryNoGap <- rbindlist(peakSummaryBatchesNoGap)
+peakSummaryChild <- rbindlist(peakSummaryChild)
+peakSummaryTeen <- rbindlist(peakSummaryTeen)
+```
+Summary statistics
+```{r}
+# ggplot(data = peakSummaryNoGap, aes(numPeaks)) +
+#   geom_bar() +
+#   geom_text(stat='count', aes(label=..count..), vjust = -1)+
+#   ggtitle(label = paste0("Peak summary ", 
+#                          "(Prop. = ", props, 
+#                          " Space = ", pers, ")"))
+
+ggplot(data = peakSummaryChild, aes(numPeaks)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -1)+
+  ggtitle(label = paste0("Peak summary ", 
+                         "(Prop. = ", props, 
+                         " Space = ", pers, ")"))
+
+ggplot(data = peakSummaryTeen, aes(numPeaks)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -1)+
+  ggtitle(label = paste0("Peak summary ", 
+                         "(Prop. = ", props, 
+                         " Space = ", pers, ")"))
+```
+Check variance
+```{r}
+# Examine peak variance among all distributions
+peakvars <- unlist(peakSummaryTeen$peakVariance)
+hist(peakvars)
+mean(peakvars < 2e-5)
+
+# Examine peak variance among unimodal distributions
+unimodalVars <- unlist(peakSummaryTeen[peakSummaryTeen$numPeaks == 1,]$peakVariance)
+summary(unimodalVars)
+hist(unimodalVars)
+mean(unimodalVars < 2e-5)
+
+# Check out peak variance among hypo- and hypermethylated unimodal probes
+humVars <- unlist(peakSummaryTeen[peakSummaryTeen$numPeaks == 1 & (peakSummaryTeen$meanBeta <= 0.3 | peakSummaryTeen$meanBeta >= 0.7),]$peakVariance)
+summary(humVars)
+hist(humVars)
+```
+Examine gaps
+```{r}
+# Choose which timepoint data to look at
+peakSummary <- peakSummaryTeen
+mean(peakSummary[peakSummary$numPeaks > 1,]$foundGap)
+literalGaps <- which(peakSummary$numPeaks > 1 & peakSummary$foundGap)
+
+for (g in seq_along(literalGaps)) {
+  print(peakSummaryPlot(row.id = literalGaps[g], range.start = 1, range.end = numProbes))
+  browser()
+}
+```
+Zoom into weird results
+```{r}
+# Choose which timepoint data to look at
+peakSummary <- peakSummaryTeen
+
+peakSummaryPlot(row.id = which(peakSummary$numPeaks == 8), range.start = 1, range.end = numProbes)
+
+weird6peak <- which(peakSummary$numPeaks == 6)
+for (w in seq_along(weird6peak)) {
+  print(peakSummaryPlot(row.id = weird6peak[w], range.start = 1, range.end = numProbes))
+  browser()
+}
+
+weird5peak <- which(peakSummary$numPeaks == 5)
+for (w in seq_along(weird5peak)) {
+  print(peakSummaryPlot(row.id = weird5peak[w], range.start = 1, range.end = numProbes))
+  browser()
+}
+
+weird4peak <- which(peakSummary$numPeaks == 4)
+for (w in seq_along(weird4peak)) {
+  print(peakSummaryPlot(row.id = weird4peak[w], range.start = 1, range.end = numProbes))
+  print(rownames(betas)[weird4peak[w]])
+  browser()
+}
+
+threepeak <- which(peakSummaryChild$numPeaks == 3)
+for (w in seq_along(threepeak)) {
+  idx <- threepeak[w]
+  print(peakSummaryPlot(beta.data = childBetas[idx,,drop = FALSE], peak.summary = peakSummaryChild[idx,]))
+  currentProbe <- rownames(betas)[threepeak[w]]
+  print(currentProbe)
+  print("Gap detected?")
+  print(peakSummaryChild$foundGap[threepeak[w]])
+  print("Proportion of sample in each peak:")
+  print(peakSummaryChild$proportionSample[threepeak[w]])
+  print("Spacing between peaks:")
+  print(diff(peakSummaryChild$peakLocations[[threepeak[w]]]))
+  browser()
+  # "cg00566331"
+}
+
+twopeak <- which(peakSummaryChild$numPeaks == 2)
+for (w in seq_along(twopeak)) {
+  idx <- twopeak[w]
+  print(peakSummaryPlot(beta.data = childBetas[idx,,drop = FALSE], peak.summary = peakSummaryChild[idx,]))
+  currentProbe <- rownames(betas)[twopeak[w]]
+  print(currentProbe)
+  print("Gap detected?")
+  print(peakSummaryChild$foundGap[twopeak[w]])
+  print("Proportion of sample in each peak:")
+  print(peakSummaryChild$proportionSample[twopeak[w]])
+  print("Spacing between peaks:")
+  print(diff(peakSummaryChild$peakLocations[[twopeak[w]]]))
+  browser()
+  # "cg00566331"
+}
+
+unimodal <- which(peakSummary$numPeaks == 1)
+set.seed(1)
+randomSeeds <- sample(1:100, size = 50)
+# Best to run this from console instead of in this notebook chunk
+par(mfrow = c(3,3))
+for (i in seq_along(randomSeeds)) {
+  set.seed(randomSeeds[i])
+  batchProbes <- sample(1:length(unimodal), size = 9)
+  for (j in 1:9) {
+    peakSummaryPlot(row.id = unimodal[batchProbes[j]], range.start = rangeStart, range.end = rangeEnd)
+  }
+  browser()
+}
+
+# Tiny trimodal
+# cg13332114
+# cg25512556 # There are eight people in the spike on the left
+# cg08778631
+
+# Quad-modal??
+# "cg15209419"
+# "cg12474444"
+# "cg20022541"
+
+# Extremely clear SNP
+# "cg05385718"
+# "cg06002687"
+
+# Tiny bimodal
+# Potential way to filter out "tail-driven" multi-modals: if one peak has > 95 % of the sample and the in-between min == 0
+# Test that on these:
+seePeaks(probe.id = "cg05162202")
+seePeaks("cg07917878")
+seePeaks("cg09145778")
+seePeaks("cg10433052")
+seePeaks("cg10531774") # has gap
+seePeaks("cg10955297") # not sure
+seePeaks("cg10961323") # has tail
+seePeaks("cg11207893") # has tail
+seePeaks("cg11403907") # not sure, but it sure looks invariant. var = 0.003431601
+seePeaks("cg11837181") # has tail
+seePeaks("cg12297125" ) # has gap
+seePeaks("cg12406391") # not sure
+
+row.index = getRowFromProbe("cg10531774")
+
+# Missed a potential tri-model at spacing = 0.25
+seePeaks("cg05392448")
+seePeaks("cg06090818")
+seePeaks("cg16682227")
+
+# What the hell is this amorphous blob
+# "cg08041448"
+
+# Use for debugging
+getRowFromProbe <- function(probe.id = NULL) {
+  if (is.null(probe.id)) {
+    noId <- simpleError("probe.id is required.")
+    stop(error = noId)
+  }
+  which(rownames(betas) == probe.id)
+}
+```
+Check differences between time points
+```{r}
+multiModalChild <- rownames(betas)[which(peakSummaryChild$numPeaks >= 2)]
+multiModalTeen <- rownames(betas)[which(peakSummaryTeen$numPeaks >= 2)]
+
+overlap <- intersect(multiModalChild, multiModalTeen)
+
+lost <- setdiff(multiModalTeen, multiModalChild)
+for (i in 1:length(lost)) {
+  idx <- which(rownames(betas) == lost[i])
+  peakSummaryPlot(beta.data = childBetas[idx,,drop = FALSE], peak.summary = peakSummaryChild[idx,])
+  browser()
+  peakSummaryPlot(beta.data = teenBetas[idx,,drop = FALSE], peak.summary = peakSummaryTeen[idx,])
+  browser()
+}
+```
+
+
+Post-processing to flag multi-modal probes with long tails
+```{r}
+suspectLongTailChild <- logical(numProbes)
+for (i in 1:numProbes) {
+  if (peakSummaryChild$numPeaks[i] == 1) {
+    suspectLongTailChild[i] <- FALSE
+  } else {
+    suspectLongTailChild[i] <- ((sum(peakSummaryChild$proportionSample[[i]] > 0.9) > 0) && !peakSummaryChild$foundGap[i])
+  }
+}
+
+sum(peakSummaryChild$numPeaks == 2 & suspectLongTailChild)
+# Number of "real" bimodal distributions in children dataset
+sum(peakSummaryChild$numPeaks == 2 & !suspectLongTailChild)
+bimodalChild <- rownames(betas)[which(peakSummaryChild$numPeaks == 2 & !suspectLongTailChild)]
+
+# Number of "real" trimodal distributions in children dataset
+sum(peakSummaryChild$numPeaks == 3 & !suspectLongTailChild)
+trimodalChild <- rownames(betas)[which(peakSummaryChild$numPeaks == 3 & !suspectLongTailChild)]
+
+# Check out what the suspected incorrect "trimodal" distributions look like
+suspectTrimodal <- rownames(betas)[which(peakSummaryChild$numPeaks == 3 & suspectLongTailChild)]
+
+# peakSummary <- peakSummaryChild
+# for (w in seq_along(suspectTrimodal)) {
+#   print(peakSummaryPlot(row.id = suspectTrimodal[w], range.start = 1, range.end = numProbes))
+#   currentProbe <- rownames(betas)[suspectTrimodal[w]]
+#   print(currentProbe)
+#   print("Gap detected?")
+#   print(peakSummary$foundGap[suspectTrimodal[w]])
+#   print("Proportion of sample in each peak:")
+#   print(peakSummary$proportionSample[suspectTrimodal[w]])
+#   print("Spacing between peaks:")
+#   print(diff(peakSummary$peakLocations[[suspectTrimodal[w]]]))
+#   browser()
+#   # "cg00566331"
+# }
+
+
+suspectLongTailTeen <- logical(numProbes)
+for (i in 1:numProbes) {
+  if (peakSummaryTeen$numPeaks[i] == 1) {
+    suspectLongTailTeen[i] <- FALSE
+  } else {
+    suspectLongTailTeen[i] <- ((sum(peakSummaryTeen$proportionSample[[i]] > 0.9) > 0) && !peakSummaryTeen$foundGap[i])
+  }
+}
+
+sum(suspectLongTailTeen)
+# Number of "real" bimodal distributions in teen dataset
+sum(peakSummaryTeen$numPeaks == 2 & !suspectLongTailTeen)
+bimodalTeen <- rownames(betas)[which(peakSummaryTeen$numPeaks == 2 & !suspectLongTailTeen)]
+
+# Number of "real" trimodal distributions in teen dataset
+sum(peakSummaryTeen$numPeaks == 3 & !suspectLongTailTeen)
+trimodalTeen <- rownames(betas)[which(peakSummaryTeen$numPeaks == 3 & !suspectLongTailTeen)]
+
+# peakSummaryTeen <- peakSummaryTeen
+# clean2Peaks <- which(peakSummaryTeen$numPeaks == 2 & !suspectLongTailTeen)
+# for (w in seq_along(clean2Peaks)) {
+#   print(peakSummaryPlot(row.id = clean2Peaks[w], range.start = 1, range.end = numProbes))
+#   currentProbe <- rownames(betas)[clean2Peaks[w]]
+#   print(currentProbe)
+#   print("Gap detected?")
+#   print(peakSummaryTeen$foundGap[clean2Peaks[w]])
+#   print("Proportion of sample in each peak:")
+#   print(peakSummaryTeen$proportionSample[clean2Peaks[w]])
+#   print("Spacing between peaks:")
+#   print(diff(peakSummaryTeen$peakLocations[[clean2Peaks[w]]]))
+#   browser()
+#   # "cg00566331"
+# }
+
+sameCT <- intersect(bimodalChild, bimodalTeen)
+lostCT <- setdiff(bimodalChild, bimodalTeen)
+gainedCT <- setdiff(bimodalTeen, bimodalChild)
+
+for (i in 1:length(lostCT)) {
+  idx <- which(rownames(betas) == lostCT[i])
+  peakSummaryPlot(beta.data = childBetas[idx,,drop = FALSE], peak.summary = peakSummaryChild[idx,])
+  browser()
+  peakSummaryPlot(beta.data = teenBetas[idx,,drop = FALSE], peak.summary = peakSummaryTeen[idx,])
+  browser()
+}
+i = 5
+peakSummary <- peakSummaryChild; peakSummaryPlot(row.id = lostCT[i], range.start = rangeStart, range.end = rangeEnd)
+
+peakSummary <- peakSummaryTeen; peakSummaryPlot(row.id = lostCT[i], range.start = rangeStart, range.end = rangeEnd)
+
+seePeaks(probe.id = "cg06634576")
+seePeaks(18905)
+seePeaks(21398)
+seePeaks(21798)
+seePeaks(25250)
+seePeaks(25838) # bimodal instead of tri due to threshold
+seePeaks(30490)
+seePeaks(33367)
+seePeaks(probe.id = "cg08578320") # unimodal blob
+seePeaks(37603) # minima not too close to zero 
+seePeaks(40681) 
+# sparse long tails: 
+seePeaks(43355)
+seePeaks(43973) 
+seePeaks("cg13101431")
+
+hist(childBetas[lostCT[2],], breaks = 500)
+```
+Quick check of consistency
+```{r}
+childMultiModalProbes <- rownames(childBetas)[which(peakSummaryChild$numPeaks >= 2)]
+teenMultiModalProbes <- rownames(teenBetas)[which(peakSummaryTeen$numPeaks >= 2)]
+sameCtoTPD <- intersect(childMultiModalProbes, teenMultiModalProbes)
+
+length(sameCtoTPD)/(length(unique(c(childMultiModalProbes, teenMultiModalProbes))))
+```
+Spot check inconsistent probes
+```{r}
+lostCtoTPD <- setdiff(teenMultiModalProbes, childMultiModalProbes)
+for (i in 1:length(lostCtoTPD)) {
+  idx <- which(rownames(betas) == lostCtoTPD[i])
+  peakSummaryPlot(beta.data = childBetas[idx,,drop = FALSE], peak.summary = peakSummaryChild[idx,])
+  browser()
+  peakSummaryPlot(beta.data = teenBetas[idx,,drop = FALSE], peak.summary = peakSummaryTeen[idx,])
+  browser()
+}
+```
+

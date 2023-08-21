@@ -1,0 +1,49 @@
+interesting <- c("cg00072288",
+"cg00112256", # invalid probe
+"cg16088894", # invalid . trimodal?
+"cg04028570",
+"cg04003903", # probably unimodal
+"cg08274176", # bimodal
+"cg00644318", 
+"cg15177604", # faintly trimodal
+"cg14422932", # clearly trimodal
+"cg05513157", # invariant with a faint echo
+"cg12233991", # invalid probe. invariant with a long sparse tail
+"cg00995284",
+"cg23892028") # invariant with a notable echo
+
+for (i in seq_along(interesting)) {
+if (!(interesting[i] %in% rownames(betas))) {
+  next
+} 
+seePeaks(probe.id = interesting[i])
+browser()
+}
+
+Doesn't quite look right
+lookswrong <- c("cg00995284",
+"cg16348638",
+"cg20268341",
+"cg00997411",
+"cg18107019",
+"cg00995284",
+"cg25320763") # really messy, maybe trimodal?
+
+for (i in seq_along(lookswrong)) {
+if (!(lookswrong[i] %in% rownames(betas))) {
+  next
+} 
+seePeaks(probe.id = lookswrong[i])
+browser()
+}
+
+big contrast:
+"cg27278382"
+"cg22403382" # invalid
+
+Ok that's a subtle difference
+"cg27558057" # invalid - missed the third small peak
+"cg06176944" # "echo" that looks like a third peak?
+
+trimodal????!!
+"cg25950377" # invalid

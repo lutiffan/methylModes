@@ -1,0 +1,292 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+source("localMinMax.R")
+source("visualizeBetaPeaks.R")
+
+##### Standard thresholding parameters #####
+# Minimum percent of the sample a peak represents
+proportionSample = 0.01
+# Minimum space between peaks on the x axis
+personalSpace = 0.05
+
+##### Advanced parameters for smoothing #####
+bwOptions <- c(NA, "sheatherJones")
+kernelType = "gaussian" # "This must partially match one of "gaussian", "rectangular", "triangular", "epanechnikov", "biweight", "cosine" or "optcosine", with default "gaussian", and may be abbreviated to a unique prefix (single letter)."
+bandwidthType = bwOptions[1] # options: NA, "sheatherJones"
+numBreaks = 500 # The "n" parameter for density(): "the number of equally spaced points at which the density is to be estimated..." You need at least 500 for a decent smooth curve
+densityAdjust = 1.5
+pushToZero = 0.0001 # Get rid of minuscule floating point numbers  created by density() that really should be zero
+
+rangeStart = 1
+rangeEnd = 30000
+totalRows = rangeEnd - rangeStart + 1
+```
+Read in the beta matrix via RDS
+```{r data}
+setwd("/nfs/turbo/bakulski1/People/data/ffcw/methyl_data/Feb2022_datafreeze")
+betaFileName <- "beta_analytic_freeze1.rds" # file.choose()
+startrds <- Sys.time()
+betas <- readRDS(betaFileName) # 5.9 GB
+rdstime = Sys.time() - startrds; rdstime
+# Time difference of 41.2518 secs
+```
+Output container
+```{r}
+# Container for all probes
+peakSummary <- data.table("numPeaks" = numeric(totalRows), 
+                          "meanBeta" = numeric(totalRows),
+                          "peakLocations" = vector(mode = "list", 
+                                              length = totalRows),
+                          # "fittedHeights" = vector(mode = "list", 
+                          #                     length = totalRows),
+                          "leftMin" = vector(mode = "list", 
+                                              length = totalRows),
+                          "rightMin" = vector(mode = "list", 
+                                              length = totalRows),
+                          "proportionSample" = vector(mode = "list", 
+                                              length = totalRows),
+                          "peakVariance" = vector(mode = "list", 
+                                              length = totalRows))
+```
+Main for-loop
+```{r}
+startTime <- Sys.time()
+for (i in 1:totalRows) { #nrow(betas)) {
+  rowIndex <- rangeStart + i - 1
+  # Step 1: smooth the histogram
+  # Setting bandwidth parameter to bw.SJ() seems to fit data well
+  # but may not be efficient
+  if (is.na(bandwidthType)) {
+    bandwidth = "nrd0"
+  } else if (bandwidthType == "sheatherJones") {
+    bandwidth = bw.SJ(betas[rowIndex,])
+  }
+  probeDensityEst <- density(betas[rowIndex,], from = 0, to = 1, n = numBreaks, 
+                             adjust = densityAdjust, bw = bandwidth, 
+                             kernel = kernelType)
+  
+  # Step 2: detect local maxima/minima
+  detected <- localMinMax(probeDensityEst$y, zeroThreshold = pushToZero)
+  # Check plot for debugging
+  # seeDetected(original.data = betas[rowIndex,], fitted.density = probeDensityEst, detected.peaks = detected, row.id = i)
+  
+  # Step 3: SIZE filter - (only if multiple maxima found) remove peaks that represent too small of a proportion of the sample to be significant
+  if (length(detected$maximaIdx) > 1) {
+    breaks = c(detected$leftMinIdx, detected$rightMinIdx[nrow(detected)])
+    #if (breaks[1] != 1) breaks <- c(1, breaks)
+    #if (breaks[length(breaks)] != 500) breaks <- c(breaks, 500)
+    
+    detected$propSample <- hist(betas[rowIndex,], breaks = probeDensityEst$x[breaks], plot = FALSE)$count/length(betas[rowIndex,])
+    aboveCutoff <- detected$propSample > proportionSample
+    detected <- detected[aboveCutoff,]
+    
+    # # DEBUG: Check plot
+    # seeDetected(original.data = betas[rowIndex,], fitted.density = probeDensityEst, detected.peaks = detected, row.id = i)
+    
+  } else {
+    detected$propSample <- 1
+  }
+  
+  # Step 4: SPACING filter - if any peaks are too close together, compare them to their neighbors and mark the shorter peak for deactivation/removal
+  xValues <- probeDensityEst$x[detected$maximaIdx]
+  checkCrowding <- diff(xValues) < personalSpace
+  
+  if (sum(checkCrowding) > 0) {
+    deactivate <- rep(FALSE, nrow(detected))
+    
+    for (j in 1:nrow(detected)) {
+      currentPeak <- detected$maximaIdx[j]
+      if (deactivate[j]) next # Skip if current peak already deactivated
+      
+      isNeighbor <- detected$maximaIdx != currentPeak &
+                            xValues > xValues[j] - personalSpace & 
+                            xValues < xValues[j] + personalSpace
+      if (sum(isNeighbor) == 0) next # No neighbors found
+      
+      shorter <- probeDensityEst$y[detected$maximaIdx] < probeDensityEst$y[currentPeak]
+    
+      peaksToDeactivate <- which(isNeighbor & shorter)
+    
+      if (length(peaksToDeactivate) > 0) {
+        suppressWarnings(deactivate[peaksToDeactivate] <- TRUE)
+      }
+    }
+    detected <- detected[!deactivate,]
+  }
+  
+  # # DEBUG: Check plot
+  # seeDetected(original.data = betas[rowIndex,], fitted.density = probeDensityEst, detected.peaks = detected, row.id = i)
+  
+  # # More debug code
+  # print(detected)
+  # browser()
+  
+  # Step 5: Calculate summary statistics
+  # 5a: variance for observations included in each peak
+  peakVariance = numeric(nrow(detected))
+  for (k in 1:nrow(detected)) {
+    leftBeta <- probeDensityEst$x[detected$leftMinIdx[k]]
+    rightBeta <- probeDensityEst$x[detected$rightMinIdx[k]]
+    peakVariance[k] <- var(betas[rowIndex,][betas[rowIndex,] > leftBeta & betas[rowIndex,] < rightBeta])
+  }
+  
+  # 5b: invariance (mean beta is less than 0.3 or greater than 0.7) 
+  meanBeta <- mean(betas[rowIndex,])
+  
+  peakSummary[i,] <- list("numPeaks" = nrow(detected), 
+                          "meanBeta" = meanBeta,
+                          "peakLocations" = probeDensityEst$x[detected$maximaIdx],
+                          # "fittedHeights" = probeDensityEst$y[detected$maximaIdx],
+                          "leftMin" = probeDensityEst$x[detected$leftMinIdx],
+                          "rightMin" = probeDensityEst$x[detected$rightMinIdx],
+                          "proportionSample" = detected$propSample,
+                          "peakVariance" = peakVariance)
+}
+endTime <- Sys.time() - startTime; endTime
+```
+See head of summary statistics
+```{r}
+## For 30,000 rows
+# Time difference of 12.07377 mins
+## Extrapolating
+# > nrow(betas)/30000
+# [1] 14.58627
+# > nrow(betas)/30000*endTime
+# Time difference of 176.1112 mins
+# > nrow(betas)/30000*endTime/60
+# 2.935186 hours
+
+range <- 1:10
+
+peakSummary[range, c("numPeaks", "meanBeta")]
+peakSummary[range, "leftMin"][[1]]
+peakSummary[range, "rightMin"][[1]]
+peakSummary[range, "proportionSample"][[1]]
+```
+Using peakSummary: summary statistics for a lot of probes
+```{r}
+#saveRDS(peakSummary, file = "peakSummary.RDS")
+# bigRange <- 1:30000
+# peakCounts <- table(peakSummary$numPeaks[bigRange])
+
+# peakCounts <- table(peakSummary$numPeaks)
+# peakCounts # For first 30k: 27113  2833    54
+# barplot(height = peakCounts)
+
+prop = 0.025
+space = 0.025
+
+rdsFilename <- paste0("sensitivityAnalysis/test_peakSummary_sensitivity_prop_", 
+                     gsub('\\.', '_', prop), "_space_", 
+                     gsub('\\.', '_', space), "_start_", 
+                     rangeStart, "_end_", rangeEnd, ".RDS")
+
+peakSummary <- readRDS(rdsFilename)
+
+ggplot(data = peakSummary, aes(numPeaks)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)+
+  ggtitle(label = paste0("Cross-reactive probe summary ", 
+                         "(Prop. = ", proportionSample, 
+                         " Space = ", personalSpace, ")"))
+
+# trimodal
+tmidx <- which(peakSummary$numPeaks == 3) + rangeStart - 1
+if (length(tmidx) < 100) tmidx
+
+# par(mfrow=c(2,2))
+for (t in 1:length(tmidx)) {
+  seePeaks(row.id = tmidx[t], histogram.bins = 50)
+  #browser()
+}
+# dev.off()
+
+# weird probes
+# 4608 12673 7045 8332 16601 21367 24016 24087
+```
+Using peakSummary: visualize individual probe summaries
+```{r}
+# Examples
+peakSummaryPlot(row.id = 1, range.start = rangeStart, range.end = rangeEnd)
+peakSummaryPlot(probe.id = "cg01707559", histogram.bins = 50, 
+                range.start = rangeStart, range.end = rangeEnd,
+                  show.hypo.hyper = T, line.col = "darkorchid",
+                  peak.col = "deeppink", min.col = "deeppink4")
+
+peakSummaryTable(row.id = 1, range.start = rangeStart, range.end = rangeEnd)
+peakSummaryTable(row.id = 21, range.start = rangeStart, range.end = rangeEnd, 
+                show.boundary = F, decimals = 2, var.decimals = 8)
+```
+Don't need peakSummary
+```{r}
+# Interesting distributions:
+# row 18: second peak has very large variance
+# row 21: hypomethylated and has two peaks
+# A real and a false trimodal that catches noise: 1652 4608
+bandwidthType = NA
+kernelType = "gaussian"
+seePeaks(101, histogram.bins = 500, label.col = "red")
+seePeaks(18)
+seePeaks(21)
+
+seePeaks(1652)
+seePeaks(4608)
+
+# One big peak in middle
+seePeaks(row.id = 206677, density.breaks = 1024)
+
+# Maybe two peaks on the right?
+seePeaks(row.id = 208801)
+
+# Almost invariant
+seePeaks(row.id = 29932)
+
+# Trimodal? Bimodal?
+seePeaks(row.id = 179171)
+
+# Definitely trimodal
+seePeaks(row.id = 211484)
+```
+Change parameters and compare graphs
+```{r}
+# Interesting distributions:
+# row 18: second peak has very large variance
+# row 21: hypomethylated and has two peaks
+# A real and a false trimodal that catches noise: 1652 4608
+bandwidthType = NA
+kernelType = "gaussian"
+
+seePeaks(18)
+seePeaks(21)
+
+seePeaks(1652)
+seePeaks(4608)
+
+# One big peak in middle
+seePeaks(row.id = 206677, density.breaks = 1024)
+
+# Maybe two peaks on the right?
+seePeaks(row.id = 208801)
+
+# Almost invariant
+seePeaks(row.id = 29932)
+
+# Trimodal? Bimodal?
+seePeaks(row.id = 179171)
+
+# Definitely trimodal
+seePeaks(row.id = 211484)
+
+# From meeting
+seePeaks(probe.id = "cg12233991")
+seePeaks(probe.id = "cg05513157")
+seePeaks(row.id = 171582)
+```

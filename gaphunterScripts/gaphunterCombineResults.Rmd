@@ -1,0 +1,117 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, echo = FALSE}
+library(minfi)
+library(ggplot2)
+library(VennDiagram)
+# library(grid)
+library(mclust)
+library(data.table)
+source("/home/lutiffan/visualize/visualizeBetaPeaks.R")
+source("/home/lutiffan/peakDetectionScripts/standardParams.R")
+
+# Adds lines to an existing plot
+seeGH <- function(data, group.num, classification, 
+                         colors = c("orange", "purple", "cyan", "darkred",
+                                    "bisque4", "darkgoldenrod3", "aquamarine4",
+                                    "coral2")) {
+  classRanges <- vector(mode = "list", length = group.num)
+  
+  for (i in 1:group.num) {
+    inClass <- classification == i
+    classRanges[[i]] <- range(data[inClass])
+  }
+  #browser()
+  for (i in 1:group.num) {
+    abline(v = classRanges[[i]][1], col = colors[i], lwd = 2)
+    abline(v = classRanges[[i]][2], col = colors[i], lwd = 2)
+  }
+}
+```
+Read beta matrix with cross-reactive probes and teenagers removed
+```{r}
+childBetas <- readRDS("cleanedBetasChildOnlyAutosomal.RDS")
+teenBetas <- readRDS("cleanedBetasTeenOnlyAutosomal.RDS")
+```
+Default gaphunter on child data
+```{r}
+# Fails with 20 GB memory allocated
+# GHresultsCleanedChild <- gaphunter(object = betas, verbose = T)
+GHresultsCleanedChild <- readRDS("/home/lutiffan/gaphunterResults/GHresultsCleanedChild.RDS")
+
+table(GHresultsCleanedChild$proberesults$Groups)
+
+ggplot(data = GHresultsCleanedChild$proberesults, aes(Groups)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)
+
+childGapProbes <- rownames(GHresultsCleanedChild$proberesults)
+
+# saveRDS(GHresultsCleanedChild, "GHresultsCleanedChild.RDS")
+
+```
+Default gaphunter on teen data
+```{r}
+# Fails with 20 GB memory allocated
+# GHresultsCleanedTeen <- gaphunter(object = betas, verbose = T)
+GHresultsCleanedTeen <- readRDS("/home/lutiffan/gaphunterResults/GHresultsCleanedTeen.RDS")
+
+table(GHresultsCleanedTeen$proberesults$Groups)
+
+ggplot(data = GHresultsCleanedTeen$proberesults, aes(Groups)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)
+
+teenGapProbes <- rownames(GHresultsCleanedTeen$proberesults)
+
+# saveRDS(GHresultsCleanedTeen, "GHresultsCleanedTeen.RDS")
+
+```
+Differences between child and teen gap probes
+```{r}
+
+lostCtoT <- setdiff(childGapProbes, teenGapProbes)
+gainedCtoT <- setdiff(teenGapProbes, childGapProbes)
+sameCtoT <- intersect(childGapProbes, teenGapProbes)
+
+length(sameCtoT)/(length(unique(c(childGapProbes, teenGapProbes)))) # 0.726
+
+for (i in seq_along(lostCtoT)) {
+  print(lostCtoT[i])
+  idxb <- which(rownames(childBetas) == lostCtoT[i])
+  
+  idxgh <- which(rownames(GHresultsCleanedChild$proberesults) == lostCtoT[i])
+  betas <- childBetas
+  # hist(childBetas[idxb,], breaks = 50, xlim = c(0,1))
+  seePeaks(probe.id = lostCtoT[i])
+  seeGH(data = childBetas[idxb,], group.num = GHresultsCleanedChild$proberesults$Groups[idxgh], 
+        classification = GHresultsCleanedChild$sampleresults[idxgh,])
+  browser()
+  
+  betas <- teenBetas
+  # hist(teenBetas[idxb,], breaks = 50, xlim = c(0,1))
+  seePeaks(probe.id = lostCtoT[i])
+  # seeGH(data = teenBetas[idxb,], group.num = GHresultsCleanedTeen$proberesults$Groups[idxgh], 
+  #       classification = GHresultsCleanedTeen$sampleresults[idxgh,])
+  browser()
+}
+
+# Misses gaps due to increased continuity
+# "cg02368820"
+# "cg05337761" # this is a good one
+# "cg08531380"
+# "cg09874754"
+# "cg10092377"
+# "cg19712078"
+# Real noisy
+# "cg02978297"
+# "cg08531380"
+```
+Hail Mary (don't run in chunk. Run in console.)
+```{r}
+ghtest <- gaphunter(object = betas)
+saveRDS(ghtest, "gaphunter_all.RDS")
+```

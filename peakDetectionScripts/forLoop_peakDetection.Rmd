@@ -1,0 +1,276 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+# source("localMinMax.R")
+source("/home/lutiffan/peakDetectionScripts/fillPeakSummary.R") # sources localMinMax.R
+source("/home/lutiffan/visualize/visualizeBetaPeaks.R")
+source("/home/lutiffan/peakDetectionScripts/standardParams.R")
+
+# ##### Standard thresholding parameters #####
+# # Minimum percent of the sample a peak represents
+# proportionSample = 0.1
+# # Minimum space between peaks on the x axis
+# personalSpace = 0.05
+# 
+# ##### Advanced parameters for smoothing #####
+# bwOptions <- c(NA, "sheatherJones")
+# kernelType = "gaussian" # "This must partially match one of "gaussian", "rectangular", "triangular", "epanechnikov", "biweight", "cosine" or "optcosine", with default "gaussian", and may be abbreviated to a unique prefix (single letter)."
+# bandwidthType = bwOptions[1] # options: NA, "sheatherJones"
+# numBreaks = 500 # The "n" parameter for density(): "the number of equally spaced points at which the density is to be estimated..." You need at least 500 for a decent smooth curve
+# densityAdjust = 1.5
+# pushToZero = 0.0001 # Get rid of minuscule floating point numbers  created by density() that really should be zero
+# 
+# rangeStart = 1
+# rangeEnd = 300
+# totalRows = rangeEnd - rangeStart + 1
+```
+Read in the beta matrix via RDS
+```{r data}
+# setwd("/nfs/turbo/bakulski1/People/data/ffcw/methyl_data/Feb2022_datafreeze")
+# betaFileName <- "beta_analytic_freeze1.rds" # file.choose()
+# startrds <- Sys.time()
+# betas <- readRDS(betaFileName) # 5.9 GB
+# rdstime = Sys.time() - startrds; rdstime
+# Time difference of 41.2518 secs
+
+betas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasChildOnlyAutosomal.RDS")
+rangeStart = 400000
+rangeEnd = 401545
+totalRows = rangeEnd - rangeStart + 1
+```
+Remove cross-reactive probes - DONE
+```{r}
+# load("/nfs/turbo/bakulski1/cross.probes.info.450k.rda")
+# head(cross.probes.info)
+# 
+# # Get vector of names of cross-reactive probes in our beta matrix
+# isCrossReactive <- rownames(betas) %in% cross.probes.info$TargetID
+# 
+# betas <- betas[!isCrossReactive,]
+# 
+# saveRDS(betas, "cleanedBetas.RDS")
+```
+Output container
+```{r}
+# Container for all probes
+peakSummary <- data.table("numPeaks" = numeric(totalRows), 
+                          "meanBeta" = numeric(totalRows),
+                          "peakLocations" = vector(mode = "list", 
+                                              length = totalRows),
+                          # "fittedHeights" = vector(mode = "list", 
+                          #                     length = totalRows),
+                          "leftMin" = vector(mode = "list", 
+                                              length = totalRows),
+                          "rightMin" = vector(mode = "list", 
+                                              length = totalRows),
+                          "proportionSample" = vector(mode = "list", 
+                                              length = totalRows),
+                          "peakVariance" = vector(mode = "list", 
+                                              length = totalRows),
+                          "gapFound" = logical(totalRows))
+```
+Main for-loop
+```{r}
+# Crowded on right
+# i = 15459 
+# i = 20284 # The two noisy peaks are just more than 0.05 apart...
+# Crowded on left
+# i = 28287
+
+startTime <- Sys.time()
+peakSummary <- fillPeakSummary()
+endTime <- Sys.time() - startTime; endTime
+
+# saveRDS(peakSummary, "/home/lutiffan/sensitivityAnalysis/peakSummary_noCR_child_autosomal_1_50000.RDS")
+```
+See head of summary statistics
+```{r}
+## For 30,000 rows
+# Time difference of 12.07377 mins
+## Extrapolating
+# > nrow(betas)/30000
+# [1] 14.58627
+# > nrow(betas)/30000*endTime
+# Time difference of 176.1112 mins
+# > nrow(betas)/30000*endTime/60
+# 2.935186 hours
+
+range <- 1:10
+
+peakSummary[range, c("numPeaks", "meanBeta")]
+peakSummary[range, "leftMin"][[1]]
+peakSummary[range, "rightMin"][[1]]
+peakSummary[range, "proportionSample"][[1]]
+```
+Using peakSummary: summary statistics for a lot of probes
+```{r}
+#saveRDS(peakSummary, file = "peakSummary.RDS")
+# bigRange <- 1:30000
+# peakCounts <- table(peakSummary$numPeaks[bigRange])
+
+# peakCounts <- table(peakSummary$numPeaks)
+# peakCounts # For first 30k: 27113  2833    54
+# barplot(height = peakCounts)
+
+prop = proportionSample
+space = personalSpace
+
+# The OG peakSummary with gaphunter-like parameters
+rdsFilename <- "/home/lutiffan/sensitivityAnalysis/test_peakSummary_sensitivity_prop_0_1_space_0_05_start_1_end_30000.RDS"
+oldps <- readRDS(rdsFilename)
+
+rdsFilename <- paste0("sensitivityAnalysis/test_peakSummary_sensitivity_prop_", 
+                     gsub('\\.', '_', prop), "_space_", 
+                     gsub('\\.', '_', space), "_start_", 
+                     rangeStart, "_end_", rangeEnd, ".RDS")
+
+peakSummary <- readRDS(rdsFilename)
+
+ggplot(data = peakSummary, aes(numPeaks)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)+
+  ggtitle(label = paste0("Peak summary ", 
+                         "(Prop. = ", proportionSample, 
+                         " Space = ", personalSpace, ")"))
+
+ggplot(data = oldps, aes(numPeaks)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)+
+  ggtitle(label = paste0("Cross-reactive probe summary ", 
+                         "(Prop. = ", proportionSample, 
+                         " Space = ", personalSpace, ")"))
+
+# trimodal
+tmidx <- which(peakSummary$numPeaks == 3) + rangeStart - 1
+if (length(tmidx) < 100) tmidx
+
+# par(mfrow=c(2,2))
+for (t in 1:length(tmidx)) {
+  seePeaks(row.id = tmidx[t], histogram.bins = 50)
+  #browser()
+}
+
+# multimodal
+multIdx <- which(peakSummary$numPeaks >= 3) + rangeStart - 1
+length(multIdx)
+
+# par(mfrow=c(2,2))
+for (t in 1:length(multIdx)) {
+  seePeaks(row.id = multIdx[t], histogram.bins = 50)
+  print(peakSummary$proportionSample[multIdx[t]])
+  browser()
+}
+# dev.off()
+
+# weird probes
+# 4608 12673 7045 8332 16601 21367 24016 24087 1548 1645 2857 16890
+# what the heck!? 
+# 3473 5435 9581 10574 16601
+# very SNP-probe like
+# 12673 14618 16848 19113
+# gaphunter doesn't get it
+# 14518 14527?
+```
+Using peakSummary: visualize individual probe summaries
+```{r}
+# Examples
+peakSummaryPlot(row.id = 1, range.start = rangeStart, range.end = rangeEnd)
+peakSummaryPlot(probe.id = "cg01707559", histogram.bins = 50, 
+                range.start = rangeStart, range.end = rangeEnd,
+                  show.hypo.hyper = T, line.col = "darkorchid",
+                  peak.col = "deeppink", min.col = "deeppink4")
+
+peakSummaryTable(row.id = 1, range.start = rangeStart, range.end = rangeEnd)
+peakSummaryTable(row.id = 21, range.start = rangeStart, range.end = rangeEnd, 
+                show.boundary = F, decimals = 2, var.decimals = 8)
+```
+Don't need peakSummary
+```{r}
+#### ALL OF THESE ROW INDICES REFER TO A MATRIX WITH CROSS-REACTIVE PROBES INCLUDED ####
+
+# Interesting distributions:
+# row 18: second peak has very large variance
+# row 21: hypomethylated and has two peaks
+# A real and a false trimodal that catches noise: 1652 4608
+bandwidthType = NA
+kernelType = "gaussian"
+seePeaks(row.id = 101, histogram.bins = 500, label.col = "red")
+seePeaks(18)
+seePeaks(21)
+
+seePeaks(1652)
+seePeaks(4608) # nope that's wrong
+
+# One big peak in middle
+seePeaks(row.id = 206677, density.breaks = 1024)
+
+# Maybe two peaks on the right?
+seePeaks(row.id = 208801)
+
+# Almost invariant
+seePeaks(row.id = 29932)
+
+# Trimodal? Bimodal?
+seePeaks(row.id = 179171)
+
+# Definitely trimodal
+seePeaks(row.id = 211484)
+
+# Test small sample sizes
+samp100 <- sample(size = 100, 1:ncol(betas), replace = F)
+betas <- betas[, samp100]
+for (t in 1:100) {
+  seePeaks(row.id = t)
+  #print(peakSummary$proportionSample[multIdx[t]])
+  browser()
+}
+```
+Change parameters and compare graphs
+```{r}
+# Interesting distributions:
+# row 18: second peak has very large variance
+# row 21: hypomethylated and has two peaks
+# A real and a false trimodal that catches noise: 1652 4608
+bandwidthType = NA
+kernelType = "gaussian"
+
+seePeaks(18)
+seePeaks(21)
+
+seePeaks(1652)
+seePeaks(4608)
+
+# One big peak in middle
+seePeaks(row.id = 206677, density.breaks = 1024)
+
+# Maybe two peaks on the right?
+seePeaks(row.id = 208801)
+
+# Almost invariant
+seePeaks(row.id = 29932)
+
+# Trimodal? Bimodal?
+seePeaks(row.id = 179171)
+
+# Definitely trimodal
+seePeaks(row.id = 211484)
+
+# From meeting
+seePeaks(probe.id = "cg12233991")
+seePeaks(probe.id = "cg05513157")
+seePeaks(row.id = 171582)
+
+# long tail: 100013
+# trimodal? 100021
+for (p in 1:nrow(peakSummary)) {
+  peakSummaryPlot(row.id = p, range.start = rangeStart, range.end = rangeEnd)
+  browser()
+}
+```

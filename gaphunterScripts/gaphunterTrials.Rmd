@@ -1,0 +1,166 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, echo = FALSE}
+library(minfi)
+library(ggplot2)
+library(VennDiagram)
+# library(grid)
+library(mclust)
+library(data.table)
+source("visualizeBetaPeaks.R")
+source("standardParams.R")
+
+# Adds lines to an existing plot
+seeGH <- function(data, group.num, classification, 
+                         colors = c("orange", "purple", "cyan", "darkred",
+                                    "bisque4", "darkgoldenrod3", "aquamarine4",
+                                    "coral2")) {
+  classRanges <- vector(mode = "list", length = group.num)
+  
+  for (i in 1:group.num) {
+    inClass <- classification == i
+    classRanges[[i]] <- range(data[inClass])
+  }
+  #browser()
+  for (i in 1:group.num) {
+    abline(v = classRanges[[i]][1], col = colors[i], lwd = 2)
+    abline(v = classRanges[[i]][2], col = colors[i], lwd = 2)
+  }
+}
+```
+Read beta matrix with cross-reactive probes and teenagers removed
+```{r}
+betasChild <- readRDS("cleanedBetasChildOnlyAutosomal.RDS")
+betasTeen <- readRDS("cleanedBetasTeenOnlyAutosomal.RDS")
+```
+Default gaphunter on child data
+```{r}
+# Fails with 20 GB memory allocated
+# GHresultsCleanedChild <- gaphunter(object = betas, verbose = T)
+GHresultsCleanedChild <- readRDS("gaphunterResults/GHresultsCleanedChild.RDS")
+
+table(GHresultsCleanedChild$proberesults$Groups)
+
+ggplot(data = GHresultsCleanedChild$proberesults, aes(Groups)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)
+
+childGapProbes <- rownames(GHresultsCleanedChild$proberesults)
+
+# saveRDS(GHresultsCleanedChild, "GHresultsCleanedChild.RDS")
+
+```
+Default gaphunter on teen data
+```{r}
+# Fails with 20 GB memory allocated
+# GHresultsCleanedTeen <- gaphunter(object = betas, verbose = T)
+GHresultsCleanedTeen <- readRDS("gaphunterResults/GHresultsCleanedTeen.RDS")
+
+table(GHresultsCleanedTeen$proberesults$Groups)
+
+ggplot(data = GHresultsCleanedTeen$proberesults, aes(Groups)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)
+
+teenGapProbes <- rownames(GHresultsCleanedTeen$proberesults)
+
+# saveRDS(GHresultsCleanedTeen, "GHresultsCleanedTeen.RDS")
+
+```
+Differences between child and teen gap probes
+```{r}
+lostCtoT <- setdiff(childGapProbes, teenGapProbes)
+gainedCtoT <- setdiff(teenGapProbes, childGapProbes)
+sameCtoT <- intersect(childGapProbes, teenGapProbes)
+
+for (i in seq_along(lostCtoT)) {
+  print(lostCtoT[i])
+  idxb <- which(rownames(betasChild) == lostCtoT[i])
+  idxgh <- which(rownames(GHresultsCleanedChild$proberesults) == lostCtoT[i])
+  betas <- betasChild
+  seePeaks(probe.id = lostCtoT[i])
+  seeGH(data = betasChild[idxb,], group.num = GHresultsCleanedChild$proberesults$Groups[idxgh], 
+        classification = GHresultsCleanedChild$sampleresults[idxgh,])
+  browser()
+  betas <- betasTeen
+  seePeaks(probe.id = lostCtoT[i])
+  browser()
+}
+
+# Misses gaps due to increased continuity
+# "cg02368820"
+# "cg05337761" # this is a good one
+# "cg08531380"
+# "cg09874754"
+# "cg10092377"
+# "cg19712078"
+# Real noisy
+# "cg02978297"
+# "cg08531380"
+```
+Try GMMC
+```{r}
+# library(mixtools)
+totalRows <- nrow(betas)
+gmmcResults <- data.table("optimalG" = numeric(totalRows), 
+                          "groupNames" = vector(mode = "list", 
+                                              length = totalRows),
+                          "means" = vector(mode = "list", 
+                                              length = totalRows),
+                          "sigmasq" = vector(mode = "list", 
+                                              length = totalRows),
+                          "classification" = vector(mode = "list", 
+                                              length = totalRows),
+                          "G" = numeric(totalRows))
+```
+
+```{r}
+
+# maxK <- 3
+# bicThreshold <- 100
+# mtResults <- numeric(10)
+# myResults <- numeric(10)
+
+startTime <- Sys.time()
+# for (i in seq_along(betas)) {
+#   print(i)
+# Small-scale test
+for (i in 1:5000) {
+  fit <- Mclust(data = betas[i,], G = 1:3, modelNames = "E", verbose = F)
+  
+  # Sometimes the clusters are ridiculously small.
+  keepCluster <- as.numeric(which(table(fit$classification)/ncol(betas) > proportionSample))
+  
+  gmmcResults[i,] <- list("optimalG" = length(keepCluster),
+                          "groupNames" = keepCluster,
+                          "means" = fit$parameters$mean[keepCluster],
+                          "sigmasq" = fit$parameters$variance$sigmasq[keepCluster],
+                          "classification" = fit$classification,
+                          "G" = fit$G)
+  
+  # Small-scale test
+  # hist(betas[i,], breaks = 500)
+  # seeGMMC(data = betas[i,], groups = keepCluster, classification = fit$classification)
+
+}
+Sys.time() - startTime
+# Small-scale test
+# gmmcResults$optimalG[1:10]
+
+# saveRDS(gmmcResults, file = "gmmcResults_1_5000.RDS")
+```
+See gmmcResult summary
+```{r}
+ggplot(data = gmmcResults, aes(optimalG)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -1)
+```
+
+Hail Mary (don't run in chunk. Run in console.)
+```{r}
+ghtest <- gaphunter(object = betas)
+saveRDS(ghtest, "gaphunter_all.RDS")
+```

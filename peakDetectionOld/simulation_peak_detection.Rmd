@@ -1,0 +1,285 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+library(seewave)
+library(cardidates)
+library(stringr)
+```
+
+This code copied from stackexchange
+https://stackoverflow.com/questions/6836409/finding-local-maxima-and-minima
+```{r}
+# Cases where diff() twice doesn't work well:
+# all these return numeric(0):
+x <- c(1,2,9,9,2,1,1,5,5,1) # duplicated points at maxima 
+which(diff(sign(diff(x)))==-2)+1 
+x <- c(2,2,9,9,2,1,1,5,5,1) # duplicated points at start
+which(diff(sign(diff(x)))==-2)+1 
+x <- c(3,2,9,9,2,1,1,5,5,1) # start is maxima
+which(diff(sign(diff(x)))==-2)+1
+
+localMaxima <- function(x, zeroThreshold) {
+  x <- ifelse(x < zeroThreshold, 0, x)
+  
+  # Use -Inf instead if x is numeric (non-integer)
+  y <- diff(c(-Inf, x)) > 0L
+  # y <- diff(c(-.Machine$integer.max, x)) > 0L
+  #rle(y)$lengths
+  y <- cumsum(rle(y)$lengths)
+  y <- y[seq.int(1L, length(y), 2L)]
+  if (x[[1]] == x[[2]]) {
+    y <- y[-1]
+  }
+  y
+}
+```
+Data generation and smoothing
+```{r}
+# Test data generation
+# A complicated multimodal
+mean1 <- 0.05
+mean2 <- 0.1
+mean3 <- 0.3
+mean4 <- 0.6
+
+sd1 <- 0.008
+sd2 <- 0.03
+sd3 <- 0.02
+sd4 <- 0.02
+
+set.seed(30)
+peak1 <- rnorm(900, mean =  mean1, sd = sd1)
+peak2 <- rnorm(200, mean = mean2, sd = sd2)
+peak3 <- rnorm(50, mean = mean3, sd = sd3)
+peak4 <- rnorm(500, mean = mean4, sd = sd4)
+fourPeaks <- c(peak1, peak2, peak3, peak4)
+
+# All data close to 0
+density2Peak <- density(c(peak1, peak2), from = 0, to = 1, n = 500, bw = bw.SJ(fourPeaks), adjust = 2)
+hist(c(peak1, peak2), breaks = 500, xlim = c(0,1), probability = TRUE)
+lines(density2Peak, col = "orchid", lwd = 2, pch = 19)
+
+# Data somewhat spread out
+density4Peak <- density(fourPeaks, from = 0, to = 1, n = 500, bw = bw.SJ(fourPeaks), adjust = 2)
+hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4Peak, col = "orchid", lwd = 2, pch = 19)
+
+# # Try loess? Nah, this also depends on choosing right parameters
+# binned <- hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE)
+# polySmooth <- loess(binned$counts ~ binned$breaks[-1])
+# 
+
+# Reflect across x = 0.5
+set.seed(30)
+peak1Inv <- rnorm(900, mean =  1-mean1, sd = sd1)
+peak2Inv <- rnorm(200, mean = 1-mean2, sd = sd2)
+peak3Inv <- rnorm(50, mean = 1-mean3, sd = sd3)
+peak4Inv <- rnorm(500, mean = 1-mean4, sd = sd4)
+fourPeaksInv <- c(peak1Inv, peak2Inv, peak3Inv, peak4Inv)
+
+# All data close to 1
+density2PeakInv <- density(c(peak1Inv, peak2Inv), from = 0, to = 1, n = 500, bw = bw.SJ(fourPeaksInv), adjust = 2)
+hist(c(peak1Inv, peak2Inv), breaks = 500, xlim = c(0,1), probability = TRUE)
+lines(density2PeakInv, col = "cyan", lwd = 2, pch = 19)
+
+# Data somewhat spread out
+density4PeakInv <- density(fourPeaksInv, from = 0, to = 1, n = 500, bw = bw.SJ(fourPeaksInv), adjust = 2)
+hist(fourPeaksInv, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4PeakInv, col = "cyan", lwd = 2, pch = 19)
+```
+Working on my own version for min and max detection
+```{r}
+# Assume input data is not all slope == 0
+localMinMax <- function(fitted, zeroThreshold = 0.01) {
+  # Testing: try different datasets
+  # fitted <- density4Peak$y; zeroThreshold = 1/100 
+  # fitted <- density4PeakInv$y; zeroThreshold = 1/100 
+  fitted <- ifelse(fitted < zeroThreshold, 0, fitted)
+  
+  # Cases:
+  # 1. If line increasing at start, plusMinus will be TRUE TRUE...
+  # until we reach the first stationary point to the right
+  
+  # 2. If line decreasing/flat at start, plusMinus will be TRUE FALSE ... 
+  # detect stationary point at index == 1
+  # When slope is no longer zero, we will incorrectly detect a stationary point
+  
+  # this code cannot distinguish between negative slope and slope of zero
+  plusMinus <- diff(c(-Inf, fitted)) > 0L
+  
+  # Find indices where the sign of the slope changes
+  slopeZero <- cumsum(rle(plusMinus)$lengths); slopeZero
+  
+  if (length(slopeZero) == 1) {
+    return(list("maximaIdx" = slopeZero, "minimaIdx" = c(1, 500)))
+  }
+  
+  # Add one to deal with the fact that diff() is one short compared to input
+  #flatRuns <- cumsum(rle(flat)$lengths) + 1; flatRuns
+  
+  # 1. First slope sign change is a max
+  # 2. First (artificial) slope sign change is a max and is located at index == 1
+  # 3. First (artificial) slope sign change is just artificial. Second sign change is an inflection point
+  whereMax <- seq.int(1L, length(slopeZero), 2L)
+  whereMin <- -whereMax
+  # Case 3: Line starts out flat
+  if (fitted[[1]] == fitted[[2]]) { 
+    whereMax <- whereMax[-1] # Skip artificial first slope sign change
+    whereMin <- c(-2, whereMin) # Skip inflection point
+    #slopeZero <- slopeZero[-2]
+  }
+  maxes <- slopeZero[whereMax]
+  mins <- slopeZero[whereMin]
+  
+  return(list("maximaIdx" = maxes, "minimaIdx" = mins))
+}
+
+fourPeaksMinMax <- localMinMax(density4Peak$y); fourPeaksMinMax
+
+#### ONLY DO THIS IF THERE IS MORE THAN ONE PEAK ####
+peaks <- fourPeaksMinMax$maximaIdx
+breaks = fourPeaksMinMax$minimaIdx
+if (breaks[1] != 1) breaks <- c(1, breaks)
+if (breaks[length(breaks)] != 500) breaks <- c(breaks, 500)
+
+# Testing: see where we detected mins/maxes
+# plot(density4Peak$x, density4Peak$y)
+# points(density4Peak$x[peaks], fitted[peaks], col = "red", pch = 19, cex = 1.25)
+# points(density4Peak$x[breaks], fitted[breaks], col = "blue", pch = 19, cex = 1.25)
+#points(density4Peak$x[slopeZero], fitted[slopeZero], col = "green", pch = 19, cex = 1.25)
+
+# Show maxima and minima/inflection points
+fitted <- ifelse(density4Peak$y < 0.001, 0, density4Peak$y)
+hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4Peak, col = "orchid", lwd = 2, pch = 19)
+points(density4Peak$x[peaks], fitted[peaks], col = "red", pch = 19, cex = 1.25)
+points(density4Peak$x[breaks], fitted[breaks], col = "blue", pch = 19, cex = 1.25)
+  
+aboveCutoff <- hist(fourPeaks[fourPeaks > 0 & fourPeaks < 1], breaks = density4Peak$x[breaks], plot = TRUE)$count/length(fourPeaks[fourPeaks > 0 & fourPeaks < 1]) > cutoff
+aboveCutoff
+filtered <- peaks[aboveCutoff]
+
+# Filter by percent of samples represented by a peak
+hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4Peak, col = "orchid", lwd = 2, pch = 19)
+points(density4Peak$x[filtered], fitted[filtered], col = "red", pch = 19, cex = 1.25)
+
+
+# # See where the peaks are after filtering for size
+# plot(density4Peak$x, density4Peak$y)
+# points(density4Peak$x[filtered], fitted[filtered], col = "red", pch = 19, cex = 1.25)
+# points(density4Peak$x[breaks], fitted[breaks], col = "blue", pch = 19, cex = 1.25)
+
+
+#### ONLY DO THIS IF THERE IS ANY CROWDING ####
+crowded <- diff(density4Peak$x[filtered]) < 0.1
+# Get rid of peaks that are too close to others
+finalPeaks <- filtered
+for (i in seq_along(finalPeaks)) {
+  currentPeak <- finalPeaks[i]
+  if (currentPeak == 0) next # Skip if already deactivated
+  
+  isNeighbor <- finalPeaks != currentPeak &
+                          finalPeaks > currentPeak - 50 & 
+                          finalPeaks < currentPeak + 50
+  
+  neighbors <- finalPeaks[isNeighbor]
+  shorter <- density4Peak$y[finalPeaks] < density4Peak$y[currentPeak]
+  suppressWarnings(finalPeaks[isNeighbor & shorter] <- 0)
+}
+finalPeaks <- finalPeaks[finalPeaks != 0]; finalPeaks
+
+# Put this in Powerpoint
+hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4Peak, col = "orchid", lwd = 2, pch = 19)
+points(density4Peak$x[finalPeaks], fitted[finalPeaks], col = "red", pch = 19, cex = 1.25)
+```
+Results and plot
+```{r}
+maxIndices <- finalPeaks
+#maxIndices <- localMaxima(density4Peak$y, zeroThreshold = 1)
+maxIndices
+density4Peak$x[maxIndices]
+density4Peak$y[maxIndices]
+hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE,
+     main = "Detection of local maxima on simulated data",
+     xlab = "Beta",
+     ylab = "Probability density")
+lines(density4Peak, col = "orchid", lwd = 2, pch = 19)
+points(density4Peak$x[maxIndices], density4Peak$y[maxIndices], col = "red", 
+       pch = 19, cex = 1.25)
+```
+Table summary of results
+```{r}
+# View results in a data frame
+peakSummary <- data.frame("betas" = density4Peak$x[maxIndices], 
+                          "fitted" = density4Peak$y[maxIndices])
+View(peakSummary)
+
+# Returns too many answers if you don't clean up the values near zero
+cleaned <- ifelse(density4Peak$y < 1, 0, density4Peak$y)
+which(diff(sign(diff(cleaned)))==-2)+1
+```
+Compare to other packages
+```{r}
+zeroThreshold <- 0.001
+fitted <- ifelse(density4Peak$y < zeroThreshold, 0, density4Peak$y)
+
+# seewave package
+testfpeaks <- matrix(c(density4Peak$x, fitted), ncol = 2)
+seewavePeaks <- fpeaks(spec = testfpeaks)
+# Threshold options: 
+# - keep n number of peaks
+# - value of slope on sides of peaks
+# - distance between peaks on x axis
+# - height of peak on y axis
+sliceData <- hist(fourPeaks, breaks = 500, xlim = c(0,1), probability = TRUE, 
+     main = "Histogram of simulated data",
+     xlab = "Beta",
+     ylab = "Probability density"); points(seewavePeaks[,1], seewavePeaks[,2], col = "red", pch = 19)
+
+# cardidates package
+peakwindow(x = density4Peak$x, y = density4Peak$y) -> cardidatesPeaks
+# We definitely need to smooth the data ourselves first
+#peakwindow(x = sliceData$breaks[-1], y = sliceData$counts) -> cardidatesPeaks
+# Threshold options:
+# - start and end window on x axis
+# - minimum height of peak
+# - minimum relative height of a minima that is bounded by two peaks, compared to the lower peak
+cardidatesPeaks$peaks
+plot(density4Peak$x, density4Peak$y); points(cardidatesPeaks$peaks$x, cardidatesPeaks$peaks$y, col = "red", pch = 19); points(density4Peak$x[cardidatesPeaks$peaks$xleft], density4Peak$y[cardidatesPeaks$peaks$xleft], col = "blue", pch = 19); points(density4Peak$x[cardidatesPeaks$peaks$xright], density4Peak$y[cardidatesPeaks$peaks$xright], col = "blue", pch = 19)
+
+## peakwindow() calls this function.
+## Apparently not useful for my data, but it's cool. 
+## A function testing if a time series purely random or not.
+# turnPts <- turnpoints(density4Peak$y)
+# plot(turnPts)
+
+# Codes a time series as Increasing, Decreasing, Peak, Flat, or Trough
+# Uses for loop
+lineStateCodes <- discrets(fitted, symb = 5)
+lineStateCodes
+
+# stringr package
+str_locate_all(pattern = "P", string = lineStateCodes)
+#match(c("P"), lineStateCodes) # works with vector elements
+```
+

@@ -1,0 +1,62 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(cardidates)
+library(seewave)
+```
+Example: a complicated multimodal
+```{r}
+mean1 <- 0.05
+mean2 <- 0.1
+mean3 <- 0.3
+mean4 <- 0.6
+
+sd1 <- 0.008
+sd2 <- 0.03
+sd3 <- 0.02
+sd4 <- 0.02
+
+set.seed(30)
+peak1 <- rnorm(900, mean =  mean1, sd = sd1)
+peak2 <- rnorm(200, mean = mean2, sd = sd2)
+peak3 <- rnorm(50, mean = mean3, sd = sd3)
+peak4 <- rnorm(500, mean = mean4, sd = sd4)
+fourPeaks <- c(peak1, peak2, peak3, peak4)
+
+density4Peak <- density(fourPeaks, from = 0, to = 1, n = 500, bw = bw.SJ(fourPeaks), adjust = 2)
+
+density4Peak$y <- ifelse(density4Peak$y < 1/length(fourPeaks), 0, density4Peak$y)
+
+exampleResult <- peakwindow(x = density4Peak$x, y = density4Peak$y)
+plot(exampleResult)
+
+fpeaksDat <- matrix(c(density4Peak$x, density4Peak$y), ncol = 2)
+seewaveResult <- fpeaks(fpeaksDat)
+```
+For loop
+```{r}
+fpeakCounts <- numeric(maxRow)
+
+startTime <- Sys.time()
+for (i in 1:maxRow) { #nrow(betas)) {
+  if (is.na(bandwidthType)) {
+    bandwidth = "nrd0"
+  } else if (bandwidthType == "SJ") {
+    bandwidth = bw.SJ(betas[i,])
+  }
+  probeDensityEst <- density(betas[i,], from = 0, to = 1, n = numBreaks, adjust = densityAdjust, bw = bandwidth)
+  probeDensityEst$y <- ifelse(probeDensityEst$y < pushToZero, 0, probeDensityEst$y)
+  
+  found <- peakwindow(x = probeDensityEst$x, y = probeDensityEst$y)$peaks
+  fpeakCounts[i] <- nrow(found)
+}
+endTime <- Sys.time() - startTime; endTime
+```
+Summary
+```{r}
+table(peakCounts)
+```
+

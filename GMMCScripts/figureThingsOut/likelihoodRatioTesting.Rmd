@@ -1,0 +1,113 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+library(mclust)
+library(data.table)
+library(dplyr)
+dataset = "child"
+alpha = 0.05
+```
+Read data
+```{r}
+if (dataset == "child") {
+  betas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasChildOnlyAutosomal.RDS")
+} else {
+  betas <- readRDS("/home/lutiffan/betaMatrix/cleanedBetasTeenOnlyAutosomal.RDS") 
+}
+```
+Subset a chunk of the data for testing
+```{r}
+rangeStart = 100000
+rangeEnd = 100050
+totalRows = rangeEnd - rangeStart + 1
+```
+Container for results
+```{r}
+gmmcResults <- data.table("optimalG" = numeric(totalRows), 
+                          "groupNames" = vector(mode = "list", 
+                                              length = totalRows),
+                          "means" = vector(mode = "list", 
+                                              length = totalRows),
+                          "sigmasq" = vector(mode = "list", 
+                                              length = totalRows),
+                          "classification" = vector(mode = "list", 
+                                              length = totalRows),
+                          "G" = numeric(totalRows))
+```
+Run Mclust()
+```{r}
+startTime <- Sys.time()
+
+# Small-scale test
+for (i in 50000:50015) {
+  
+  k = 1
+  model0 <- Mclust(data = betas[i,], G = k, modelNames = "V", verbose = F)
+  loglik0 <- model0$loglik
+  testMore <- TRUE
+  
+  # Verify log-likelihood
+  ll0 <- sum(dnorm(x = betas[i,], mean = means0, sd = sqrt(sigmaSq0), log = T))
+  
+  while (k < 3 & testMore) {
+    k <- k + 1
+    modelH <- Mclust(data = betas[i,], G = k, modelNames = "V", verbose = F)
+    loglikH <- modelH$loglik
+    
+    # Verify log-likelihood
+    # My method
+    mixtureH <- colSums(modelH$z)/nrow(modelH$z)
+    
+    k1ll <- mixtureH[1]*dnorm(x = betas[i,], mean = modelH$parameters$mean[1], sd = sqrt(modelH$parameters$variance$sigmasq[1]))
+    k2ll <- mixtureH[2]*dnorm(x = betas[i,], mean = modelH$parameters$mean[2], sd = sqrt(modelH$parameters$variance$sigmasq[2]))
+    sum(log(k1ll + k2ll))
+    
+    # Stackoverflow method
+    L <- matrix(NA, nrow = modelH$n, ncol = 2)
+    L[,1] <- dnorm(x = betas[i,], mean = modelH$parameters$mean[1], sd = sqrt(modelH$parameters$variance$sigmasq[1]))
+    L[,2] <- dnorm(x = betas[i,], mean = modelH$parameters$mean[2], sd = sqrt(modelH$parameters$variance$sigmasq[2]))
+    
+    w1 <- mixtureH[1]
+    w2 <- mixtureH[2]
+    
+    L[,1] = w1*L[,1]
+    L[,2] = w2*L[,2]
+    sum(log(rowSums(L)))
+    
+    lambda <- 2*(loglikH - loglik0)
+    p <- pchisq(lambda, df = (modelH$df - model0$df), lower.tail = FALSE)
+    
+    # # What's the right number of degrees of freedom?
+    # lambda <- 2*(loglikH - loglik0)
+    # p <- pchisq(lambda, df = (modelH$df - model0$df), lower.tail = FALSE)
+    
+    if (p < alpha) {
+      model0 <- modelH
+      loglik0 <- loglikH
+    } else {
+      testMore <- FALSE
+    }
+  }
+  
+  # TODO: update the container
+  # Sometimes the clusters are ridiculously small.
+  keepCluster <- as.numeric(which(table(model0$classification)/ncol(betas) > proportionSample))
+  
+  gmmcResults[i,] <- list("optimalG" = length(keepCluster),
+                          "groupNames" = keepCluster,
+                          "means" = fit$parameters$mean[keepCluster],
+                          "sigmasq" = fit$parameters$variance$sigmasq[keepCluster],
+                          "classification" = fit$classification,
+                          "G" = fit$G)
+  
+  # Small-scale test
+  # hist(betas[i,], breaks = 500)
+  # seeGMMC(data = betas[i,], groups = keepCluster, classification = fit$classification)
+
+}
+Sys.time() - startTime
+```
+
