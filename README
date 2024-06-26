@@ -1,0 +1,27 @@
+This is the source code for MethylModes, an R Shiny application for identifying multi-modal distributions in methylation at individual CpG sites. Users upload methylation data (in the form of a beta matrix) from a local source and can download results as a .csv file.
+
+To run this app, you need to install the latest versions of Shiny and several other dependencies. The most elegant way to do that is by using the pacman package, which conveniently handles package installation. Run the following code to install pacman and all MethylModes dependences:
+
+
+# pacman gives us the function p_load
+if(!require("pacman")) {
+  # require() attempts to load a package and returns TRUE or FALSE
+  install.packages("pacman")
+  library(pacman)
+}
+p_load(
+# Shiny-specific
+shiny, shinyjs, shinybusy, shinycssloaders,
+
+# Tables and plots
+data.table, dplyr, ggplot2, plotly,
+
+# Parallelization
+foreach, iterators, parallelly, doParallel
+)
+
+It's a good idea to restart R after installing new packages to ensure that they work properly.
+
+After all required packages are installed, set the working directory to the one where MethylModes files are located, and then run the following code in the R console:
+
+shiny::runApp()

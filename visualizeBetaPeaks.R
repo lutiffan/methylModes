@@ -1,5 +1,3 @@
-source("/home/lutiffan/peakDetectionScripts/methylModes.R")
-
 # USING peakSummary AND BETA MATRIX
 peakSummaryPlot <- function(beta.data, peak.summary, probe.id = NULL, 
                               # range.start = NULL, range.end = NULL,
@@ -23,7 +21,8 @@ peakSummaryPlot <- function(beta.data, peak.summary, probe.id = NULL,
     stop(error = missingRow)
   }
   
-  title <- paste("Beta distribution for probe", probe.id)
+  # title <- paste("Beta distribution for probe", probe.id)
+  title <- probe.id
   
   # # Row id optional in title.
   # if (!noRow) { # probe.id must have been provided

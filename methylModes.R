@@ -1,5 +1,3 @@
-# library(sfsmisc)
-source("/home/lutiffan/peakDetectionScripts/localMinMax.R")
 # seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
 
 # Refined on examples:
@@ -42,7 +40,8 @@ methylModes <- function(row.data = NULL) {
   
   #seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
   
-  # Step 2.5: Remove points with at least boundary minima at zero
+  # Step 2.5: Remove peaks that are below the proportion cutoff and have at 
+  # least one boundary minima at zero
   if (nrow(detected) > 1) {
     ### proportionSample check 1 ###
     leftMinx <- probeDensityEst$x[detected$leftMinIdx]
