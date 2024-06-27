@@ -12,7 +12,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                        "EPIC" = "ilepic")),
                         fileInput("betaFile", "Choose Beta Matrix File",
                                   multiple = FALSE,
-                                  accept = c(".txt", ".csv", ".idat", ".RDS", ".RDA")), # Most people are not gonna have an RDS format
+                                  accept = c(".txt", ".csv", ".RDS", ".RDA")), # Most people are not gonna have an RDS format
                         helpText("Accepted file formats: .csv, .txt (tab-delimited), .idat, RGSET, .RDS, .RDA", br(),
                                  "Max file size: 20 GB"),
                         p("Possible features: upload phenotype , select annotation file to use",

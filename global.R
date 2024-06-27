@@ -1,12 +1,15 @@
+# General data manipulation
+library(data.table)
+library(dplyr)
+library(tools) # file_ext()
+
 # Shiny-specific
 library(shiny)
 library(shinyjs)
 library(shinybusy)
 library(shinycssloaders)
 
-# Tables and plots
-library(data.table)
-library(dplyr)
+# Plots
 library(ggplot2)
 library(plotly)
 

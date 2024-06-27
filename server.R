@@ -6,10 +6,20 @@ function(input, output) {
   
   ##### Get Started #####
   
+  # Implicity returns betas as a reactive object
   getBetas <- reactive({
     req(input$betaFile$datapath)
-    # readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
-    readRDS(input$betaFile$datapath) # Implicity returns betas as a reactive object
+    
+    fileType <- file_ext(input$betaFile$datapath)
+    
+    if (fileType == "RDS") {
+      readRDS(input$betaFile$datapath) 
+    } else if (fileType == "csv") {
+      as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
+    } else {
+      warning("Invalid file type.")
+    }
+    
   })
   
   output$dimensions <- renderText({
@@ -302,8 +312,10 @@ function(input, output) {
     rangeEnd <- input$rangeEndBetaMatrix
     
     totalRows = rangeEnd - rangeStart + 1
-
-    peakSummary <- fillPeakSummaryParallel(betas)
+    print(paste("Running in parallel on", availableCores(), "cores"))
+    # Note that I had a bug here where I forgot to restrict the beta matrix
+    # to the user-requested range! Fixed 6/27/24
+    peakSummary <- fillPeakSummaryParallel(betas[rangeStart:rangeEnd,])
     
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
