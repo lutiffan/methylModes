@@ -12,10 +12,12 @@ function(input, output) {
     
     fileType <- file_ext(input$betaFile$datapath)
     
-    if (fileType == "RDS") {
+    if (fileType %in% c("RDS", "rds")) {
       readRDS(input$betaFile$datapath) 
-    } else if (fileType == "csv") {
+    } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
       as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
+    } else if (fileType %in% c("RDA", "rda")) {
+      load(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
     }
@@ -30,50 +32,77 @@ function(input, output) {
     paste0("Found ", nProbe, " probes and ", nSample, " samples.")
   })
   
-  output$betaOverview <- renderPlot({
-    betas <- getBetas()
-    if (is.null(betas)) return()
-    
-    probeMeans <- rowMeans(betas)
-    
-    hist(probeMeans, col = "#75AADB", border = "white",
-         xlab = "Beta value",
-         main = "Histogram of methylation proportions across probes")
-    
-  })
-  
   getAnnotation <- reactive({
-    req(input$probeType)
+    req(input$arrayType)
     betas <- getBetas()
     if (is.null(betas)) return()
     
-    if (input$probeType == "il450k") {
+    if (input$arrayType == "il450k") {
+      if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
+        BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
+      }
+      
       library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-      annotationData <- data.frame(Chromosome = 
-                                     sub("chr", "", Locations[rownames(betas), 
-                                                              "chr"]),
-                                   Island = Islands.UCSC[rownames(betas), 
-                                                         "Relation_to_Island"])
-    } else if (input$probeType == "ilepic") {
-      library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
-      annotationData <- data.frame(Chromosome = 
-                                     sub("chr", "", Locations[rownames(betas), "chr"]),
-                                   Island = Islands.UCSC[rownames(betas), 
-                                                         "Relation_to_Island"])
+
+    } else if (input$arrayType == "ilepic1") {
+      if (!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")) {
+        BiocManager::install("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")
+      }
+      
+      # library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
+      # I think this one is more up-to-date
+      library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
+      
+    } else if (input$arrayType == "ilepic2") {
+      if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
+        BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
+      }
+      
+      library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
     }
+    annotationData <- data.frame(Chromosome = 
+                                   sub("chr", "", Locations[rownames(betas), "chr"]),
+                                 Island = Islands.UCSC[rownames(betas), 
+                                                       "Relation_to_Island"])
     annotationData
-    
-    # if (input$probeType == "il450k") {
-    #   library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-    #   
-    # }
-    # else if (input$probeType == "ilepic") {
-    #   library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
-    # }
   })
   
-  # TODO: annotations. Which one do I use for EPIC?
-  # Make an accompanying table so you know there is data for the Y chromosome?
+  # output$betaOverview <- renderPlot({
+  #   betas <- getBetas()
+  #   if (is.null(betas)) return()
+  #   
+  #   probeMeans <- rowMeans(betas)
+  #   
+  #   hist(probeMeans, col = "#75AADB", border = "white",
+  #        xlab = "Beta value",
+  #        main = "Average methylation proportions across probes")
+  #   
+  # })
+  
+  output$betaOverview <- renderPlotly({
+    betas <- getBetas()
+    if (is.null(betas)) return()
+
+    probeMeans <- data.frame("Beta" = round(rowMeans(betas), 2))
+    
+    p <- ggplot(probeMeans, aes(Beta)) +
+      # geom_histogram(aes(y = ..density.., text = paste('Histogram Bar Density:', round(..density.., 2))), binwidth = 0.05) +
+      # geom_line(aes(y = ..density.., text = paste('Smoothed Density:', round(..density.., 2))), stat = 'density', size = 1) +
+      geom_histogram(aes(y = ..density..)) +
+      geom_line(aes(y = ..density.., ), stat = 'density') +
+      labs(title = "Density of Average Methylation Proportion Per Probe") + 
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(), 
+            axis.line = element_line(colour = "black"))
+    ggplotly(p)
+
+    # hist(probeMeans, col = "#75AADB", border = "white",
+    #      xlab = "Beta value",
+    #      main = "Average methylation proportions across probes")
+
+  })
+  
   output$chromosomeBar <- renderPlotly({
     betas <- getBetas()
     if (is.null(betas)) return()
@@ -91,7 +120,11 @@ function(input, output) {
     
     p <- ggplot(relevantLabels, aes(x = Chromosome)) +
       geom_bar() +
-      labs(title = "Barplot of Chromosome Counts", x = "Chromosome", y = "Count")
+      labs(title = "Probe Locations by Chromosome", x = "Chromosome", y = "Count") + 
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(), 
+            axis.line = element_line(colour = "black"))
     ggplotly(p)
   })
   
@@ -108,28 +141,37 @@ function(input, output) {
     
     p <- ggplot(relevantLabels, aes(x = Island)) +
       geom_bar() +
-      labs(title = "Barplot of Probe Relations to Islands", x = "Relation", y = "Count")
+      labs(title = "CpG Island Coverage", x = "", y = "Count") + 
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(), 
+            axis.line = element_line(colour = "black"))
     ggplotly(p)
   })
   
   observeEvent(input$betaFile, {
-    if (!is.null(input$betaFile$datapath)) {
+    if (!is.null(input$betaFile$datapath) & 
+        file_ext(input$betaFile$datapath) %in% 
+        c("RDS", "rds", "csv", "TXT", "txt", "tsv", "RDA", "rda")) {
       
       # Probe analysis inputs
       betas <- getBetas()
       numProbes <- nrow(betas)
       firstProbe <- rownames(betas)[1]
       
-      shinyjs::enable("runProbe")
-      shinyjs::enable("runProbeRandom")
-      shinyjs::enable("probeId")
-      updateTextInput(inputId = "probeId", value = firstProbe)
-
-      # Beta matrix analysis inputs
-      shinyjs::enable("runBetaMatrix")  # Enable the button when the file is uploaded
-      shinyjs::enable("rangeStartBetaMatrix")
-      shinyjs::enable("rangeEndBetaMatrix")
-      updateNumericInput(inputId = "rangeEndBetaMatrix", value = numProbes)
+      # Remove disabling from buttons if the appropriate analysis type is selected
+      # if (input$analysisType == "individual") {
+        shinyjs::enable("runProbe")
+        shinyjs::enable("runProbeRandom")
+        shinyjs::enable("probeId")
+        updateTextInput(inputId = "probeId", value = firstProbe)
+      # } else {
+        shinyjs::enable("runBetaMatrix")
+        shinyjs::enable("rangeStart")
+        shinyjs::enable("rangeEnd")
+        updateNumericInput(inputId = "rangeStart", value = 1)
+        updateNumericInput(inputId = "rangeEnd", value = numProbes)
+      #}
     }
   })
   
@@ -149,13 +191,13 @@ function(input, output) {
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
-    proportionSample <- input$proportionSampleProbe
-    personalSpace <- input$peakDistanceProbe
+    proportionSample <- input$proportionSample
+    personalSpace <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjustProbe
-    pushToZero <- input$pushToZeroProbe
+    densityAdjust <- input$densityAdjust
+    pushToZero <- input$pushToZero
     probeId <- input$probeId
     # probeId <- "cg27399079" # for testing
     # histogramBins <- 50
@@ -206,20 +248,20 @@ function(input, output) {
     
 
   })
-  
+
   getProbeVisualBaseR <- reactive({
     req(input$runProbe)
     betas <- getBetas()
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
-    proportionSample <- input$proportionSampleProbe
-    personalSpace <- input$peakDistanceProbe
+    proportionSample <- input$proportionSample
+    personalSpace <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjustProbe
-    pushToZero <- input$pushToZeroProbe
+    densityAdjust <- input$densityAdjust
+    pushToZero <- input$pushToZero
     probeId <- input$probeId
     # probeId <- "cg27399079" # for testing
     # histogramBins <- 50
@@ -256,13 +298,13 @@ function(input, output) {
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
-    proportionSample <- input$proportionSampleProbe
-    personalSpace <- input$peakDistanceProbe
+    proportionSample <- input$proportionSample
+    personalSpace <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjustProbe
-    pushToZero <- input$pushToZeroProbe
+    densityAdjust <- input$densityAdjust
+    pushToZero <- input$pushToZero
     probeId <- input$probeId
     # probeId <- "cg27399079" # for testing
     # histogramBins <- 50
@@ -273,7 +315,7 @@ function(input, output) {
     
     detectedPeaks <- calculate$detected
     fittedDensity <- calculate$probeDensityEst
-    
+
     title <- paste("Beta distribution for probe", probeId)
     labelHeight <- 0.05*max(fittedDensity$y)
     hist(betas[rowId,], breaks = histogramBins, xlim = c(0,1),
@@ -294,22 +336,25 @@ function(input, output) {
   ##### Beta matrix-level analysis #####
   
   getPeakSummary <- reactive({
+
     req(input$runBetaMatrix)
     betas <- getBetas()
     if (is.null(betas)) return()
+
+    # TODO require start and end range
     
     # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
     
     # Set MethylModes parameters
-    proportionSample <- input$proportionSampleBetaMatrix
-    personalSpace <- input$peakDistanceBetaMatrix
+    proportionSample <- input$proportionSample
+    personalSpace <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjustBetaMatrix
-    pushToZero <- input$pushToZeroBetaMatrix
-    rangeStart <- input$rangeStartBetaMatrix
-    rangeEnd <- input$rangeEndBetaMatrix
+    densityAdjust <- input$densityAdjust
+    pushToZero <- input$pushToZero
+    rangeStart <- input$rangeStart
+    rangeEnd <- input$rangeEnd
     
     totalRows = rangeEnd - rangeStart + 1
     print(paste("Running in parallel on", availableCores(), "cores"))
@@ -368,5 +413,41 @@ function(input, output) {
       fwrite(getPeakSummary(), file)
     }
   )
+  
+  # Conditional features
+  # Render different action buttons in the sidebar based on selection
+  # output$conditionalSidebarButtons <- renderUI({
+  #   if (input$analysisType == "individual") {
+  #     # Individual Probe Analysis buttons
+  #     list(
+  #       shinyjs::disabled(textInput("probeId", "Probe Id",
+  #                                   value = "cg27399079")),
+  #       # add_busy_spinner(spin = "self-building-square",
+  #       #                  timeout = 500,
+  #       #                  position = "top-right"),
+  #       shinyjs::disabled(actionButton("runProbe", "Run on Selected Probe")),
+  #       div(style = "margin-bottom: 10px;"),
+  #       shinyjs::disabled(actionButton("runProbeRandom", "Run on Randomly Selected Probe"))
+  #     )
+  #   } else if (input$analysisType == "multi_probe") {
+  #     # Whole Genome Analysis buttons
+  #     list(
+  #       actionButton("action3", "Whole Genome 1"),
+  #       actionButton("action4", "Whole Genome 2")
+  #       # ... Add other UI elements here for Whole Genome Analysis
+  #     )
+  #   }
+  # })
+  
+  # output$conditionalPlots <- renderUI({
+  #   if (input$analysisType == "individual") {
+  #     list(
+  #       h4("Summary of Probe-Level MethylModes Results"),
+  #       plotlyOutput(outputId = "probeVisual"),
+  #       plotOutput(outputId = "probeVisualBaseR")
+  #     )
+  #   } else if (input$analysisType == "multi_probe") {
+  #   }
+  # })
   
 }
