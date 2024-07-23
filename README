@@ -14,7 +14,7 @@ p_load(
 shiny, shinyjs, shinybusy, shinycssloaders,
 
 # Tables and plots
-data.table, dplyr, ggplot2, plotly,
+data.table, dplyr, ggplot2, plotly, DT,
 
 # Parallelization
 foreach, iterators, parallelly, doParallel

@@ -24,13 +24,36 @@ function(input, output) {
     
   })
   
-  output$dimensions <- renderText({
+  output$wholeDataDimensions <- renderText({
     betas <- getBetas()
     if (is.null(betas)) return("")
     nProbe <- nrow(betas)
     nSample <- ncol(betas)
     paste0("Found ", nProbe, " probes and ", nSample, " samples.")
   })
+  
+  # Check whether annotation packages are already installed or not
+  missing450kAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylation450kanno.ilmn12.hg19"))))
+  missingEPICAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))))
+  missingEPICV2Annotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38"))))
+  
+  output$missing450kAnnotation <- reactive({
+    missing450kAnnotation()
+  })
+  
+  outputOptions(output, "missing450kAnnotation", suspendWhenHidden = FALSE)
+  
+  output$missingEPICAnnotation <- reactive({
+    missingEPICAnnotation()
+  })
+  
+  outputOptions(output, "missingEPICAnnotation", suspendWhenHidden = FALSE)
+  
+  output$missingEPICV2Annotation <- reactive({
+    missingEPICV2Annotation()
+  })
+  
+  outputOptions(output, "missingEPICV2Annotation", suspendWhenHidden = FALSE)
   
   getAnnotation <- reactive({
     req(input$arrayType)
@@ -40,6 +63,7 @@ function(input, output) {
     if (input$arrayType == "il450k") {
       if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
         BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
+        missing450kAnnotation(FALSE)
       }
       
       library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
@@ -47,6 +71,7 @@ function(input, output) {
     } else if (input$arrayType == "ilepic1") {
       if (!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")) {
         BiocManager::install("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")
+        missingEPICAnnotation(FALSE)
       }
       
       # library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
@@ -56,51 +81,51 @@ function(input, output) {
     } else if (input$arrayType == "ilepic2") {
       if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
         BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
+        missingEPICV2Annotation(FALSE)
       }
       
       library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
     }
+
     annotationData <- data.frame(Chromosome = 
                                    sub("chr", "", Locations[rownames(betas), "chr"]),
                                  Island = Islands.UCSC[rownames(betas), 
-                                                       "Relation_to_Island"])
+                                                       "Relation_to_Island"],
+                                 Position = Locations[rownames(betas), "pos"])
+
     annotationData
   })
   
-  # output$betaOverview <- renderPlot({
-  #   betas <- getBetas()
-  #   if (is.null(betas)) return()
-  #   
-  #   probeMeans <- rowMeans(betas)
-  #   
-  #   hist(probeMeans, col = "#75AADB", border = "white",
-  #        xlab = "Beta value",
-  #        main = "Average methylation proportions across probes")
-  #   
-  # })
+  # Will set to TRUE when probe-average plot on "get started" page is created
+  plotCreatedBetaOverview <- reactiveVal(FALSE)
+  
+  # Updates according to the plotCreatedBetaOverview reactive value
+  output$plotCreatedBetaOverview <- reactive({
+    plotCreatedBetaOverview()
+  })
+  
+  outputOptions(output, "plotCreatedBetaOverview", suspendWhenHidden = FALSE)
   
   output$betaOverview <- renderPlotly({
     betas <- getBetas()
     if (is.null(betas)) return()
 
     probeMeans <- data.frame("Beta" = round(rowMeans(betas), 2))
-    
     p <- ggplot(probeMeans, aes(Beta)) +
-      # geom_histogram(aes(y = ..density.., text = paste('Histogram Bar Density:', round(..density.., 2))), binwidth = 0.05) +
-      # geom_line(aes(y = ..density.., text = paste('Smoothed Density:', round(..density.., 2))), stat = 'density', size = 1) +
-      geom_histogram(aes(y = ..density..)) +
-      geom_line(aes(y = ..density.., ), stat = 'density') +
-      labs(title = "Density of Average Methylation Proportion Per Probe") + 
+      geom_histogram(aes(y = after_stat(density)), 
+                     binwidth = 1 / input$numHistogramBinsBetaOverview) +
+      geom_line(aes(y = after_stat(density), ), stat = 'density') +
+      labs(title = "Density of Average Methylation Proportion Per Probe",
+           x = "Beta",
+           y = "Density") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
             axis.line = element_line(colour = "black"))
+    
+    # Enables display of slider bar
+    plotCreatedBetaOverview(TRUE)
     ggplotly(p)
-
-    # hist(probeMeans, col = "#75AADB", border = "white",
-    #      xlab = "Beta value",
-    #      main = "Average methylation proportions across probes")
-
   })
   
   output$chromosomeBar <- renderPlotly({
@@ -166,7 +191,7 @@ function(input, output) {
         shinyjs::enable("probeId")
         updateTextInput(inputId = "probeId", value = firstProbe)
       # } else {
-        shinyjs::enable("runBetaMatrix")
+        shinyjs::enable("runMultiProbe")
         shinyjs::enable("rangeStart")
         shinyjs::enable("rangeEnd")
         updateNumericInput(inputId = "rangeStart", value = 1)
@@ -180,54 +205,82 @@ function(input, output) {
   observeEvent(input$runProbeRandom, {
     req(input$betaFile$datapath)
     betas <- getBetas()
-    
+
     updateTextInput(inputId = "probeId", value = rownames(betas)[sample(1:nrow(betas), 1)])
   })
   
-  # TODO: use peakSummary when available
-  getProbeVisual <- reactive({
+  # Will set to TRUE when individual-probe visual is created
+  plotCreatedProbeVisual <- reactiveVal(FALSE)
+  
+  output$plotCreatedProbeVisual <- reactive({
+    plotCreatedProbeVisual()
+  })
+  
+  outputOptions(output, "plotCreatedProbeVisual", suspendWhenHidden = FALSE)
+  
+  #### Set up graph and table after analyzing a single probe ####
+  getSingleProbeSummary <- reactive({
     req(input$runProbe | input$runProbeRandom)
     betas <- getBetas()
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
     proportionSample <- input$proportionSample
-    personalSpace <- input$peakDistance
+    peakDistance <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
     densityAdjust <- input$densityAdjust
     pushToZero <- input$pushToZero
     probeId <- input$probeId
-    # probeId <- "cg27399079" # for testing
-    # histogramBins <- 50
     rowId <- which(rownames(betas) == probeId)
-    histogramBins <- input$numHistogramBins
+
+    methylModes(row.data = betas[rowId,])
+  })
+  
+  # Example of trimodal: cg26261358
+  output$probeTable <- renderTable({
+    req(input$runProbe | input$runProbeRandom)
+    betas <- getBetas()
+    if (is.null(betas)) return()
     
-    calculate <- methylModes(row.data = betas[rowId,])
+    mmResults <- getSingleProbeSummary()
+    if (is.null(mmResults)) return()
     
-    detectedPeaks <- calculate$detected
-    fittedDensity <- calculate$probeDensityEst
+    rowId <- which(rownames(betas) == input$probeId)
+    data.frame("numPeaks" = nrow(mmResults$detected), 
+                              "meanBeta" = mean(betas[rowId,]),
+                              "peakLocations" = mmResults$probeDensityEst$x[mmResults$detected$maximaIdx],
+                              "leftMin" = mmResults$probeDensityEst$x[mmResults$detected$leftMinIdx],
+                              "rightMin" = mmResults$probeDensityEst$x[mmResults$detected$rightMinIdx],
+                              "proportionSample" = mmResults$detected$propSample,
+                              "peakVariance" = var(betas[rowId,])) 
+  })
+  
+  getProbeVisual <- reactive({
+    req(input$runProbe | input$runProbeRandom)
+    betas <- getBetas()
+    if (is.null(betas)) return()
     
-    rowId <- which(rownames(betas) == probeId)
-    # histData <- betas[rowId,]
-    histData <- data.frame("beta" = betas[rowId,])
-    histogramBins <- input$numHistogramBins
+    # # Set MethylModes parameters
+    # proportionSample <- input$proportionSample
+    # peakDistance <- input$peakDistance
+    # kernelType <<- KERNEL_TYPE
+    # bandwidthType <<- BANDWIDTH_TYPE
+    # numBreaks <- NUM_BREAKS
+    # densityAdjust <- input$densityAdjust
+    # pushToZero <- input$pushToZero
+    # probeId <- input$probeId
+    # rowId <- which(rownames(betas) == probeId)
+    # mmResults <- methylModes(row.data = betas[rowId,])
     
-    # Generate the histogram data
-    ggHist <- ggplot(histData, aes(x = beta)) +
-      geom_histogram(binwidth = 1 / histogramBins, fill = "black", color = "white") +
-      labs(title = paste("Beta distribution for probe", probeId),
-           x = "Beta",
-           y = "Density") +
-      xlim(-0.05, 1.05) + ylim(0, max(fittedDensity$y))
+    mmResults <- getSingleProbeSummary()
+    if (is.null(mmResults)) return()
+    
+    detectedPeaks <- mmResults$detected
+    fittedDensity <- mmResults$probeDensityEst
     
     fittedDensityDF <- data.frame(x = fittedDensity$x, y = fittedDensity$y)
-    
-    # Add density lines
-    ggHist <- ggHist +
-      geom_line(data = fittedDensityDF, aes(x = x, y = y), color = "orchid", size = 1)
-    
     dataFrameForMaxima <- data.frame(beta = round(fittedDensity$x[detectedPeaks$maximaIdx], 2),
                                      density = fittedDensity$y[detectedPeaks$maximaIdx])
     dataFrameForLeftMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$leftMinIdx], 2),
@@ -235,56 +288,84 @@ function(input, output) {
     dataFrameForRightMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$rightMinIdx], 2),
                                        density = fittedDensity$y[detectedPeaks$rightMinIdx])
     
+    probeId <- input$probeId
+    rowId <- which(rownames(betas) == probeId)
+
+    # histData <- betas[rowId,]
+    histData <- data.frame("beta" = betas[rowId,])
+    # hist(histData$beta, breaks = 50)
     
+    # Generate the histogram data
+    # Colors chosen using the following code: 
+    # hcl.colors(3, palette = 'viridis')
     # Add points for the peaks (maxima and minima) using the correctly structured data frames
-    ggHist <- ggHist +
-      geom_point(data = dataFrameForMaxima, aes(x = beta, y = density), color = "red", size = 3) +
-      geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density), color = "blue", size = 3) +
-      geom_point(data = dataFrameForRightMin, aes(x = beta, y = density), color = "blue", size = 3)
+    ggHist <- ggplot(histData, aes(x = beta)) +
+      geom_histogram(aes(y = after_stat(density)), 
+                     binwidth = 1 / input$numHistogramBinsOneProbe) +
+      labs(title = paste("Beta distribution for Probe", probeId),
+           x = "Beta",
+           y = "Density") +
+      xlim(-0.05, 1.05) + 
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(), 
+            axis.line = element_line(colour = "black")) +
+      geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"), 
+                linewidth = 1) +
+      geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
+      geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
+      geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
+      scale_color_manual(
+        name = "Legend",
+        values = c(
+          "Density Estimate" = "#00588B", 
+          "Maxima" = "#B2DC3C", 
+          "Minima" = "#009B95"
+        )
+      )
     
     ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
     
+    # Enable the slider bar
+    plotCreatedProbeVisual(TRUE)
     return(ggHistPlotly)
-    
-
   })
+  
 
-  getProbeVisualBaseR <- reactive({
-    req(input$runProbe)
-    betas <- getBetas()
-    if (is.null(betas)) return()
-    
-    # Set MethylModes parameters
-    proportionSample <- input$proportionSample
-    personalSpace <- input$peakDistance
-    kernelType <<- KERNEL_TYPE
-    bandwidthType <<- BANDWIDTH_TYPE
-    numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjust
-    pushToZero <- input$pushToZero
-    probeId <- input$probeId
-    # probeId <- "cg27399079" # for testing
-    # histogramBins <- 50
-    rowId <- which(rownames(betas) == probeId)
-    histogramBins <- input$numHistogramBins
-    
-    calculate <- methylModes(row.data = betas[rowId,])
-    
-    detectedPeaks <- calculate$detected
-    fittedDensity <- calculate$probeDensityEst
-    
-    title <- paste("Beta distribution for probe", probeId)
-    labelHeight <- 0.05*max(fittedDensity$y)
-    hist(betas[rowId,], breaks = histogramBins, xlim = c(0,1),
-         probability = TRUE, main = title, col = "black")
-    lines(fittedDensity, col = "orchid", lwd = 2, pch = 19)
-    points(fittedDensity$x[detectedPeaks$maximaIdx], fittedDensity$y[detectedPeaks$maximaIdx], col = "red", pch = 19, cex = 1.25)
-    points(fittedDensity$x[detectedPeaks$leftMinIdx], fittedDensity$y[detectedPeaks$leftMinIdx], col = "blue", pch = 19, cex = 1.25)
-    points(fittedDensity$x[detectedPeaks$rightMinIdx], fittedDensity$y[detectedPeaks$rightMinIdx], col = "blue", pch = 19, cex = 1.25)
-    text(fittedDensity$x[detectedPeaks$maximaIdx],
-         rep(labelHeight, nrow(detectedPeaks)), col = "black",
-         labels = round(fittedDensity$x[detectedPeaks$maximaIdx], 2), pos = 3)
-  })
+  # getProbeVisualBaseR <- reactive({
+  #   req(input$runProbe)
+  #   betas <- getBetas()
+  #   if (is.null(betas)) return()
+  #   
+  #   # Set MethylModes parameters
+  #   proportionSample <- input$proportionSample
+  #   peakDistance <- input$peakDistance
+  #   kernelType <<- KERNEL_TYPE
+  #   bandwidthType <<- BANDWIDTH_TYPE
+  #   numBreaks <- NUM_BREAKS
+  #   densityAdjust <- input$densityAdjust
+  #   pushToZero <- input$pushToZero
+  #   probeId <- input$probeId
+  #   # probeId <- "cg27399079" # for testing
+  #   rowId <- which(rownames(betas) == probeId)
+  #   
+  #   calculate <- methylModes(row.data = betas[rowId,])
+  #   
+  #   detectedPeaks <- calculate$detected
+  #   fittedDensity <- calculate$probeDensityEst
+  #   
+  #   title <- paste("Beta distribution for probe", probeId)
+  #   labelHeight <- 0.05*max(fittedDensity$y)
+  #   hist(betas[rowId,], breaks = input$numHistogramBinsOneProbe, xlim = c(0,1),
+  #        probability = TRUE, main = title, col = "black")
+  #   lines(fittedDensity, col = "orchid", lwd = 2, pch = 19)
+  #   points(fittedDensity$x[detectedPeaks$maximaIdx], fittedDensity$y[detectedPeaks$maximaIdx], col = "red", pch = 19, cex = 1.25)
+  #   points(fittedDensity$x[detectedPeaks$leftMinIdx], fittedDensity$y[detectedPeaks$leftMinIdx], col = "blue", pch = 19, cex = 1.25)
+  #   points(fittedDensity$x[detectedPeaks$rightMinIdx], fittedDensity$y[detectedPeaks$rightMinIdx], col = "blue", pch = 19, cex = 1.25)
+  #   text(fittedDensity$x[detectedPeaks$maximaIdx],
+  #        rep(labelHeight, nrow(detectedPeaks)), col = "black",
+  #        labels = round(fittedDensity$x[detectedPeaks$maximaIdx], 2), pos = 3)
+  # })
   
   output$probeVisual <- renderPlotly({
     req(getProbeVisual())
@@ -299,7 +380,7 @@ function(input, output) {
     
     # Set MethylModes parameters
     proportionSample <- input$proportionSample
-    personalSpace <- input$peakDistance
+    peakDistance <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
@@ -307,9 +388,7 @@ function(input, output) {
     pushToZero <- input$pushToZero
     probeId <- input$probeId
     # probeId <- "cg27399079" # for testing
-    # histogramBins <- 50
     rowId <- which(rownames(betas) == probeId)
-    histogramBins <- input$numHistogramBins
     
     calculate <- methylModes(row.data = betas[rowId,])
     
@@ -318,7 +397,7 @@ function(input, output) {
 
     title <- paste("Beta distribution for probe", probeId)
     labelHeight <- 0.05*max(fittedDensity$y)
-    hist(betas[rowId,], breaks = histogramBins, xlim = c(0,1),
+    hist(betas[rowId,], breaks = input$numHistogramBinsOneProbe, xlim = c(0,1),
          probability = TRUE, main = title, xlab = "Beta", ylab = "Density", 
          col = "black")
     lines(fittedDensity, col = "orchid", lwd = 2, pch = 19)
@@ -334,33 +413,33 @@ function(input, output) {
   })
   
   ##### Beta matrix-level analysis #####
-  
-  getPeakSummary <- reactive({
-
-    req(input$runBetaMatrix)
+  getMultiProbeSummary <- eventReactive(input$runMultiProbe, {
     betas <- getBetas()
     if (is.null(betas)) return()
-
-    # TODO require start and end range
     
     # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
-    
+
     # Set MethylModes parameters
     proportionSample <- input$proportionSample
-    personalSpace <- input$peakDistance
+    peakDistance <- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
     densityAdjust <- input$densityAdjust
     pushToZero <- input$pushToZero
-    rangeStart <- input$rangeStart
-    rangeEnd <- input$rangeEnd
+    # rangeStart <- input$rangeStart
+    # rangeEnd <- input$rangeEnd
     
-    totalRows = rangeEnd - rangeStart + 1
+    # totalRows = rangeEnd - rangeStart + 1
     print(paste("Running in parallel on", availableCores(), "cores"))
     # Note that I had a bug here where I forgot to restrict the beta matrix
     # to the user-requested range! Fixed 6/27/24
-    peakSummary <- fillPeakSummaryParallel(betas[rangeStart:rangeEnd,])
+    
+    if (input$region == "wholeGenome") {
+      peakSummary <- fillPeakSummaryParallel(betas)
+    } else {
+      peakSummary <- fillPeakSummaryParallel(betas[betaFilter(),])
+    }
     
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
@@ -368,28 +447,29 @@ function(input, output) {
     return(peakSummary)
   })
   
-  observeEvent(input$runBetaMatrix, {
+  observeEvent(input$runMultiProbe, {
     req(input$betaFile$datapath)
     
-    getPeakSummary()
-    
+    getMultiProbeSummary()
+    reset("runMultiProbe")
     shinyjs::enable("downloadPeakSummary")
   }) 
   
   output$peakCountBar <- renderPlotly({
-    peakSummary <- getPeakSummary()
+    req(input$runMultiProbe)
+    peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
 
     peakCounts <- data.frame(Peaks = peakSummary$numPeaks)
 
     p <- ggplot(peakCounts, aes(x = Peaks)) +
       geom_bar() +
-      labs(title = "Barplot of Peak Counts per Probe", x = "Number of peaks detected", y = "Count")
+      labs(title = "Number of Peaks Detected Per Probe", x = "Peaks", y = "Count")
     ggplotly(p)
   })
   
   output$peakSummaryPreview <- renderPlot({
-    peakSummary <- getPeakSummary()
+    peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
     
     betas <- getBetas()
@@ -403,6 +483,39 @@ function(input, output) {
     }
     
   })
+  # TODO: show preview of probe when selected from the table
+  output$peakSummaryTable <- DT::renderDataTable({
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+    
+    listToString <- function(listData, decimalPlaces) {
+      paste(as.character(round(unlist(listData), decimalPlaces)), collapse = ", ")
+    }
+
+    peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations, 
+                                                  FUN = listToString,
+                                                  decimalPlaces = 2))
+    proportionSamplePreviewFriendly <- unlist(lapply(peakSummary$proportionSample, 
+                                                     FUN = listToString,
+                                                     decimalPlaces = 3))
+    peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance, 
+                                                 FUN = listToString,
+                                                 decimalPlaces = 6))
+    
+    datatable(data.frame("probeName" = peakSummary$probeName,
+                         "numPeaks" = as.factor(peakSummary$numPeaks),
+                         "meanBeta" = round(peakSummary$meanBeta, 2),
+                         "peakLocations" = peakLocationsPreviewFriendly,
+                         "proportionSample" = proportionSamplePreviewFriendly,
+                         "peakVariance" = peakVariancePreviewFriendly),
+              selection = 
+                list(mode = "single",
+                     target = 'row+column',
+                     selected = list(
+                       rows = c(1))),
+              filter = "top"
+    )
+  })
   
   # Define a download handler
   output$downloadPeakSummary <- downloadHandler(
@@ -410,44 +523,70 @@ function(input, output) {
       paste("peakSummary", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      fwrite(getPeakSummary(), file)
+      fwrite(getMultiProbeSummary(), file)
     }
   )
   
-  # Conditional features
-  # Render different action buttons in the sidebar based on selection
-  # output$conditionalSidebarButtons <- renderUI({
-  #   if (input$analysisType == "individual") {
-  #     # Individual Probe Analysis buttons
-  #     list(
-  #       shinyjs::disabled(textInput("probeId", "Probe Id",
-  #                                   value = "cg27399079")),
-  #       # add_busy_spinner(spin = "self-building-square",
-  #       #                  timeout = 500,
-  #       #                  position = "top-right"),
-  #       shinyjs::disabled(actionButton("runProbe", "Run on Selected Probe")),
-  #       div(style = "margin-bottom: 10px;"),
-  #       shinyjs::disabled(actionButton("runProbeRandom", "Run on Randomly Selected Probe"))
-  #     )
-  #   } else if (input$analysisType == "multi_probe") {
-  #     # Whole Genome Analysis buttons
-  #     list(
-  #       actionButton("action3", "Whole Genome 1"),
-  #       actionButton("action4", "Whole Genome 2")
-  #       # ... Add other UI elements here for Whole Genome Analysis
-  #     )
-  #   }
-  # })
+  # Create a list of the unique chromosomes represented in data
+  uniqueChromosomes <- reactive({
+    annotationData <- getAnnotation()
+    if (is.null(annotationData)) return(NULL)
+    
+    allChromosomes <- c(as.character(1:22), "X", "Y")
+    intersect(allChromosomes, unique(annotationData$Chromosome))
+  })
   
-  # output$conditionalPlots <- renderUI({
-  #   if (input$analysisType == "individual") {
-  #     list(
-  #       h4("Summary of Probe-Level MethylModes Results"),
-  #       plotlyOutput(outputId = "probeVisual"),
-  #       plotOutput(outputId = "probeVisualBaseR")
-  #     )
-  #   } else if (input$analysisType == "multi_probe") {
-  #   }
-  # })
+  output$chromosomeSelect <- renderUI({
+    req(uniqueChromosomes()) 
+    selectInput("selectedChromosome", "Choose Chromosome:",
+                choices = uniqueChromosomes(),
+                selected = uniqueChromosomes()[1])
+  })
   
+  # Get minimum and maximum base pair locations from data
+  basePairMinMax <- reactive({
+    annotationData <- getAnnotation()
+    if (is.null(annotationData)) return(NULL)
+    
+    list("bpMin" = min(annotationData$Position), 
+         "bpMax" = max(annotationData$Position))
+  })
+  
+  output$basePairRangeSelect <- renderUI({
+    req(basePairMinMax())
+
+    numericRangeInput("selectedBasePairRange", 
+                      "Enter CpG location range",
+                      value = c(basePairMinMax()$bpMin, basePairMinMax()$bpMax),
+                      min = basePairMinMax()$bpMin,
+                      max = basePairMinMax()$bpMax)
+  })
+  
+  # Create a vector used to subset the beta matrix
+  betaFilter <- reactive({
+    annotationData <- getAnnotation()
+    if (is.null(annotationData)) return(NULL)
+    
+    if (input$region == "chromosome") {
+      req(input$selectedChromosome)
+      rowsToKeep <- annotationData$Chromosome == input$selectedChromosome
+    } else if (input$region == "basePair") {
+      req(input$selectedBasePairRange)
+      rowsToKeep <- annotationData$Position >= input$selectedBasePairRange[1] & 
+        annotationData$Position <= input$selectedBasePairRange[2]
+    } else {
+      rowsToKeep <- TRUE
+    }
+
+    rowsToKeep
+  })
+  
+  output$subsetDataDimensions <- renderText({
+    betas <- getBetas()
+    if (is.null(betas)) return("")
+    betaFilter <- betaFilter()
+    
+    nProbe <- sum(betaFilter)
+    paste(nProbe, "probes selected.")
+  })
 }

@@ -4,89 +4,155 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
   useShinyjs(), # Gives us tricks like disabling an element until condition satisfied
   navbarPage("MethylModes",
              tabPanel("Get Started",
-                      h3("Data Upload"),
                       sidebarPanel(
-                        radioButtons("arrayType", "Array type",
+                        fileInput("betaFile", "Upload file containing beta values",
+                                  multiple = FALSE,
+                                  accept = c(".txt", ".csv", ".RDS", ".RDA")), 
+                        helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv", br(), br(),
+                                 "Max file size: 100 GB or local memory limit, 
+                                 whichever is smaller"),
+                        conditionalPanel(
+                          condition = "output.missing450kAnnotation ||
+                          output.missingEPICAnnotation ||
+                          output.missingEPICV2Annotation",
+                          h5("The following array annotation R packages are not 
+                             installed:"),
+                          conditionalPanel(
+                            condition = "output.missing450kAnnotation",
+                            h5("450k")
+                          ),
+                          conditionalPanel(
+                            condition = "output.missingEPICAnnotation",
+                            h5("EPIC")
+                          ),
+                          conditionalPanel(
+                            condition = "output.missingEPICV2Annotation",
+                            h5("EPIC V2")
+                          ),
+                          h5("Selecting a missing package below will 
+                             begin installing it, which can take a long time.")
+                        ),
+                        radioButtons("arrayType", "Array type (Optional)",
                                      selected = character(0),
                                      c("450k" = "il450k",
                                        "EPIC v1.0" = "ilepic1",
                                        "EPIC v2.0" = "ilepic2")),
-                        fileInput("betaFile", "Choose Beta Matrix File",
-                                  multiple = FALSE,
-                                  accept = c(".txt", ".csv", ".RDS", ".RDA")), 
-                        helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv", br(),
-                                 "Max file size: 100 GB or local memory limit, 
-                                 whichever is smaller"),
-                        p("Possible features: upload phenotype , select annotation file to use",
-                          "Slider bar for histogram, show kernel density estimate")
+                        helpText("Loads array-specific annotations (e.g. chromosome, 
+                                 base pair, etc.. Required for running MethylModes on 
+                                 a subset of data.)")
                       ),
-                      h4("Data summary (generated upon successful file upload)"),
                       mainPanel(
+                        conditionalPanel(
+                          condition = "output.plotCreatedBetaOverview === false",
+                          h4("Data summary will be displayed upon successful file upload.")
+                        ),
                         # Histogram of all probes
-                        textOutput(outputId = "dimensions"),
-                        withSpinner(plotlyOutput(outputId = "betaOverview")),
+                        textOutput(outputId = "wholeDataDimensions"),
+                        plotlyOutput(outputId = "betaOverview"),
+                        conditionalPanel(
+                          condition = "output.plotCreatedBetaOverview",
+                          sliderInput(inputId = "numHistogramBinsBetaOverview", 
+                                      "Number of histogram bins", 
+                                      min = 10, max = 100,
+                                      value = 50)
+                        ),
                         withSpinner(plotlyOutput(outputId = "chromosomeBar")),
-                        withSpinner(plotlyOutput(outputId = "islandBar"))
+                        plotlyOutput(outputId = "islandBar")
                       )
               ),
-             ##### Probe-level analysis #####
+             #### Run MethylModes ####
              tabPanel("Run MethylModes",
                       sidebarPanel(
                         radioButtons(
                           "analysisType",
                           "Select Analysis Type:",
                           choices = c("Individual Probe" = "individual", 
-                                      "Multiple Probe" = "multi_probe")
+                                      "Multiple Probe" = "multiProbe")
                         ),
                         h4("Descriptive Thresholds for Peak Detection"),
-                        numericInput(label = "proportionSample",
+                        numericInput(label = "ProportionSample",
                                      inputId = "proportionSample",
                                      value = 0.05),
                         helpText("Minimum proportion of sample considered to be a peak"),
-                        numericInput(label = "peakDistance",
+                        numericInput(label = "PeakDistance",
                                      inputId = "peakDistance",
                                      value = 0.1),
                         helpText("Minimum distance between adjacent peaks"),
                         h4("Smoothing parameters"),
-                        numericInput(inputId = "densityAdjust", "density() 'adjust' parameter",
+                        numericInput(label = "DensityAdjust",
+                                     inputId = "densityAdjust",
                                      value = 1.5),
-                        numericInput(inputId = "pushToZero",
-                                     "Threshold for numbers small enough to be set to zero",
+                        numericInput(label = "Epsilon",
+                                     inputId = "pushToZero",
                                      value = 1e-6),
-                        helpText("The density() function fits very small floating-point",
-                                 "values to the data, creating tiny perturbations that ",
-                                 "reduce the accuracy of MethylModes. Setting a threshold ",
-                                 "under which small values are considered equivalent ",
-                                 "to zero mitigates this issue."),
+                        helpText("Default values are recommended for smoothing parameters."),
+                        # helpText("The density() function fits very small floating-point",
+                        #          "values to the data, creating tiny perturbations that ",
+                        #          "reduce the accuracy of MethylModes. Setting a threshold ",
+                        #          "under which small values are considered equivalent ",
+                        #          "to zero mitigates this issue."),
+                        #### Individual probe options ####
                         conditionalPanel(
                           condition = "input.analysisType == 'individual'",
                           textInput("probeId", "Probe ID", value = ""),
-                          actionButton("runProbe", "Run on Selected Probe", disabled = TRUE),
+                          actionButton("runProbe", "Run on Selected Probe", 
+                                       disabled = TRUE),
                           div(style = "margin-bottom: 10px;"),
-                          actionButton("runProbeRandom", "Run on Randomly Selected Probe", disabled = TRUE)
+                          actionButton("runProbeRandom", "Run on Randomly 
+                                       Selected Probe", disabled = TRUE),
+                          div(style = "margin-bottom: 10px;")
                         ),
+                        #### Multi-probe options ####
                         conditionalPanel(
-                          condition = "input.analysisType == 'multi_probe'",
-                          actionButton("runBetaMatrix", "Run Multiple Probe Analysis", disabled = TRUE),
-                          numericInput("rangeStart", "Range Start", value = NULL),
-                          numericInput("rangeEnd", "Range End", value = NULL),
-                          helpText("This range is used for testing.")
+                          condition = "input.analysisType == 'multiProbe'",
+                          radioButtons("region", "Select region", 
+                                       choices = c("Whole genome" = "wholeGenome",
+                                                   "Chromosome*" = "chromosome",
+                                                   "Base pair range*" = "basePair")),
+                          conditionalPanel(
+                            condition = "input.region == 'chromosome'",
+                            uiOutput("chromosomeSelect")
+                          ),
+                          conditionalPanel(
+                            condition = "input.region == 'basePair'",
+                            uiOutput("basePairRangeSelect")
+                          ),
+                          conditionalPanel(
+                            condition = "input.region == 'chromosome' ||
+                            input.region == 'basePair'",
+                            textOutput(outputId = "subsetDataDimensions"),
+                          ),
+                          helpText("*Requires that annotations for the array type are loaded (select on 'Get Started') page."),
+                          actionButton("runMultiProbe", "Run Multiple Probe Analysis", disabled = TRUE)
+                          # numericInput("rangeStart", "Range Start", value = NULL),
+                          # numericInput("rangeEnd", "Range End", value = NULL),
                         )
                       ), # sidebarPanel
                       mainPanel(
+                        #### Individual probe display ####
                         conditionalPanel(
                           condition = "input.analysisType == 'individual'",
-                          h4("Probe-Level Peak Detection"),
+                          h4("Individual Probe Analysis"),
                           withSpinner(plotlyOutput(outputId = "probeVisual")),
-                          plotOutput(outputId = "probeVisualBaseR")
+                          conditionalPanel(
+                            condition = "output.plotCreatedProbeVisual",
+                            sliderInput(inputId = "numHistogramBinsOneProbe", 
+                                        "Number of histogram bins", 
+                                        min = 10, max = 100,
+                                        value = 50)
+                          ),
+                          tableOutput('probeTable')
+                          # plotOutput(outputId = "probeVisualBaseR")
                         ),
+                        #### Multi-probe display ####
                         conditionalPanel(
-                          condition = "input.analysisType == 'multi_probe'",
-                          h4("Summary of Multiple Probe-Level Peak Detection"),
+                          condition = "input.analysisType == 'multiProbe'",
+                          h4("Multiple Probe Analysis"),
                           shinyjs::disabled(downloadButton("downloadPeakSummary",
                                                            "Download Results")),
                           withSpinner(plotlyOutput("peakCountBar")),
-                          plotOutput("peakSummaryPreview")
+                          # plotOutput("peakSummaryPreview"),
+                          DT::dataTableOutput("peakSummaryTable")
                         )
                         )
                       ), # Run MethylModes
@@ -96,7 +162,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
              #              "analysisType",
              #              "Select Analysis Type:",
              #              choices = c("Individual Probe" = "individual", 
-             #                          "Whole Genome" = "multi_probe")
+             #                          "Whole Genome" = "multiProbe")
              #            ),
              #            h4("Hyperparameters for Probe-Level Analysis"),
              #            numericInput(label = "proportionSample",
@@ -189,7 +255,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
              #            add_busy_spinner(spin = "self-building-square",
              #                             timeout = 500,
              #                             position = "top-right"),
-             #            shinyjs::disabled(actionButton("runBetaMatrix", "Run MethylModes"))
+             #            shinyjs::disabled(actionButton("runMultiProbe", "Run MethylModes"))
              #          ),
              #          mainPanel(
              #            h4("Preview of Beta Matrix-Level MethylModes Results"),
@@ -200,7 +266,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
              #            h3("Coming soon: view sorted MethylModes results (e.g. among multimodal probes, show probes with highest number of modes to fewest")
              #          )
              # ), # End of "Whole Genome Analysis" tab
-             tabPanel("Review Results",
+             tabPanel("Review and Analyze Results",
                       h3("Upload Previously Calculated Results"),
                       sidebarPanel(
                         fileInput("peakSummaryFile", "Choose MethylModes Result File",
