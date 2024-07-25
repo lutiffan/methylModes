@@ -202,11 +202,21 @@ function(input, output) {
   
   ##### Probe-level analysis #####
   
+  # Reactive value to track updates needed for the eventReactive
+  probeUpdate <- reactiveVal(NULL)
+  
   observeEvent(input$runProbeRandom, {
     req(input$betaFile$datapath)
     betas <- getBetas()
+    randomProbeId <- rownames(betas)[sample(1:nrow(betas), 1)]
 
-    updateTextInput(inputId = "probeId", value = rownames(betas)[sample(1:nrow(betas), 1)])
+    updateTextInput(inputId = "probeId", value = randomProbeId)
+    
+    probeUpdate(randomProbeId)
+  })
+  
+  observeEvent(input$runProbe, {
+    probeUpdate(input$probeId)
   })
   
   # Will set to TRUE when individual-probe visual is created
@@ -219,20 +229,20 @@ function(input, output) {
   outputOptions(output, "plotCreatedProbeVisual", suspendWhenHidden = FALSE)
   
   #### Set up graph and table after analyzing a single probe ####
-  getSingleProbeSummary <- reactive({
-    req(input$runProbe | input$runProbeRandom)
+  getSingleProbeSummary <- eventReactive(probeUpdate(), {
     betas <- getBetas()
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
-    proportionSample <- input$proportionSample
-    peakDistance <- input$peakDistance
+    proportionSample <<- input$proportionSample
+    peakDistance <<- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
     densityAdjust <- input$densityAdjust
     pushToZero <- input$pushToZero
-    probeId <- input$probeId
+    
+    probeId <- probeUpdate()
     rowId <- which(rownames(betas) == probeId)
 
     methylModes(row.data = betas[rowId,])
@@ -257,22 +267,10 @@ function(input, output) {
                               "peakVariance" = var(betas[rowId,])) 
   })
   
-  getProbeVisual <- reactive({
-    req(input$runProbe | input$runProbeRandom)
+  # problematic trimodal: cg04837091
+  getProbeVisualAdHoc <- eventReactive(getSingleProbeSummary(), {
     betas <- getBetas()
     if (is.null(betas)) return()
-    
-    # # Set MethylModes parameters
-    # proportionSample <- input$proportionSample
-    # peakDistance <- input$peakDistance
-    # kernelType <<- KERNEL_TYPE
-    # bandwidthType <<- BANDWIDTH_TYPE
-    # numBreaks <- NUM_BREAKS
-    # densityAdjust <- input$densityAdjust
-    # pushToZero <- input$pushToZero
-    # probeId <- input$probeId
-    # rowId <- which(rownames(betas) == probeId)
-    # mmResults <- methylModes(row.data = betas[rowId,])
     
     mmResults <- getSingleProbeSummary()
     if (is.null(mmResults)) return()
@@ -288,14 +286,13 @@ function(input, output) {
     dataFrameForRightMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$rightMinIdx], 2),
                                        density = fittedDensity$y[detectedPeaks$rightMinIdx])
     
-    probeId <- input$probeId
+    probeId <- probeUpdate()
     rowId <- which(rownames(betas) == probeId)
 
     # histData <- betas[rowId,]
     histData <- data.frame("beta" = betas[rowId,])
     # hist(histData$beta, breaks = 50)
     
-    # Generate the histogram data
     # Colors chosen using the following code: 
     # hcl.colors(3, palette = 'viridis')
     # Add points for the peaks (maxima and minima) using the correctly structured data frames
@@ -310,11 +307,7 @@ function(input, output) {
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
             axis.line = element_line(colour = "black")) +
-      geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"), 
-                linewidth = 1) +
       geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
-      geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
-      geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
       scale_color_manual(
         name = "Legend",
         values = c(
@@ -324,6 +317,16 @@ function(input, output) {
         )
       )
     
+    if (input$showDensitySingleProbe) {
+      ggHist <- ggHist + 
+        geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"))
+    }
+    if (input$showMinimaSingleProbe) {
+      ggHist <- ggHist + 
+        geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
+        geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3)
+    }
+    
     ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
     
     # Enable the slider bar
@@ -332,84 +335,10 @@ function(input, output) {
   })
   
 
-  # getProbeVisualBaseR <- reactive({
-  #   req(input$runProbe)
-  #   betas <- getBetas()
-  #   if (is.null(betas)) return()
-  #   
-  #   # Set MethylModes parameters
-  #   proportionSample <- input$proportionSample
-  #   peakDistance <- input$peakDistance
-  #   kernelType <<- KERNEL_TYPE
-  #   bandwidthType <<- BANDWIDTH_TYPE
-  #   numBreaks <- NUM_BREAKS
-  #   densityAdjust <- input$densityAdjust
-  #   pushToZero <- input$pushToZero
-  #   probeId <- input$probeId
-  #   # probeId <- "cg27399079" # for testing
-  #   rowId <- which(rownames(betas) == probeId)
-  #   
-  #   calculate <- methylModes(row.data = betas[rowId,])
-  #   
-  #   detectedPeaks <- calculate$detected
-  #   fittedDensity <- calculate$probeDensityEst
-  #   
-  #   title <- paste("Beta distribution for probe", probeId)
-  #   labelHeight <- 0.05*max(fittedDensity$y)
-  #   hist(betas[rowId,], breaks = input$numHistogramBinsOneProbe, xlim = c(0,1),
-  #        probability = TRUE, main = title, col = "black")
-  #   lines(fittedDensity, col = "orchid", lwd = 2, pch = 19)
-  #   points(fittedDensity$x[detectedPeaks$maximaIdx], fittedDensity$y[detectedPeaks$maximaIdx], col = "red", pch = 19, cex = 1.25)
-  #   points(fittedDensity$x[detectedPeaks$leftMinIdx], fittedDensity$y[detectedPeaks$leftMinIdx], col = "blue", pch = 19, cex = 1.25)
-  #   points(fittedDensity$x[detectedPeaks$rightMinIdx], fittedDensity$y[detectedPeaks$rightMinIdx], col = "blue", pch = 19, cex = 1.25)
-  #   text(fittedDensity$x[detectedPeaks$maximaIdx],
-  #        rep(labelHeight, nrow(detectedPeaks)), col = "black",
-  #        labels = round(fittedDensity$x[detectedPeaks$maximaIdx], 2), pos = 3)
-  # })
   
   output$probeVisual <- renderPlotly({
-    req(getProbeVisual())
-    getProbeVisual()  # Return the plotly object
-  })
-  
-  output$probeVisualBaseR <- renderPlot({
-    req(input$runProbe | input$runProbeRandom)
-    # req(getProbeVisual())
-    betas <- getBetas()
-    if (is.null(betas)) return()
-    
-    # Set MethylModes parameters
-    proportionSample <- input$proportionSample
-    peakDistance <- input$peakDistance
-    kernelType <<- KERNEL_TYPE
-    bandwidthType <<- BANDWIDTH_TYPE
-    numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjust
-    pushToZero <- input$pushToZero
-    probeId <- input$probeId
-    # probeId <- "cg27399079" # for testing
-    rowId <- which(rownames(betas) == probeId)
-    
-    calculate <- methylModes(row.data = betas[rowId,])
-    
-    detectedPeaks <- calculate$detected
-    fittedDensity <- calculate$probeDensityEst
-
-    title <- paste("Beta distribution for probe", probeId)
-    labelHeight <- 0.05*max(fittedDensity$y)
-    hist(betas[rowId,], breaks = input$numHistogramBinsOneProbe, xlim = c(0,1),
-         probability = TRUE, main = title, xlab = "Beta", ylab = "Density", 
-         col = "black")
-    lines(fittedDensity, col = "orchid", lwd = 2, pch = 19)
-    points(fittedDensity$x[detectedPeaks$maximaIdx], fittedDensity$y[detectedPeaks$maximaIdx], col = "red", pch = 19, cex = 1.25)
-    points(fittedDensity$x[detectedPeaks$leftMinIdx], fittedDensity$y[detectedPeaks$leftMinIdx], col = "blue", pch = 19, cex = 1.25)
-    points(fittedDensity$x[detectedPeaks$rightMinIdx], fittedDensity$y[detectedPeaks$rightMinIdx], col = "blue", pch = 19, cex = 1.25)
-    # text(fittedDensity$x[detectedPeaks$maximaIdx],
-    #      rep(labelHeight, nrow(detectedPeaks)), col = "black",
-    #      labels = round(fittedDensity$x[detectedPeaks$maximaIdx], 2), pos = 3)
-    # req(getProbeVisualBaseR())
-    # getProbeVisualBaseR()
-    # hist(1:10)
+    req(getProbeVisualAdHoc())
+    getProbeVisualAdHoc()  # Return the plotly object
   })
   
   ##### Beta matrix-level analysis #####
@@ -420,8 +349,8 @@ function(input, output) {
     # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
 
     # Set MethylModes parameters
-    proportionSample <- input$proportionSample
-    peakDistance <- input$peakDistance
+    proportionSample <<- input$proportionSample
+    peakDistance <<- input$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
@@ -483,7 +412,7 @@ function(input, output) {
     }
     
   })
-  # TODO: show preview of probe when selected from the table
+
   output$peakSummaryTable <- DT::renderDataTable({
     peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
@@ -512,10 +441,104 @@ function(input, output) {
                 list(mode = "single",
                      target = 'row+column',
                      selected = list(
-                       rows = c(1))),
-              filter = "top"
+                       rows = 1,
+                       cols = c())),
+              filter = "top",
+              options = list(columnDefs = list(
+                list(searchable = FALSE, targets = c(4, 5, 6)) 
+              ))
     )
   })
+  
+  output$probeVisualFromPeakSummary <- renderPlot({
+    betas <- getBetas()
+    if (is.null(betas)) return()
+    
+    betaFilter <- betaFilter()
+    if (is.null(betas)) return()
+    
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+
+    req(getMultiProbeSummary())
+    
+    # output$selectedRow <- renderPrint({
+    #   selected <- input$peakSummaryTable_rows_selected
+    #   if(length(selected)) {
+    #     print(selected)
+    #   } else {
+    #     print("No row selected")
+    #   }
+    # })
+    
+    rowIdx <- input$peakSummaryTable_rows_selected
+    peakSummaryPlot(beta.data = betas[betaFilter,][rowIdx, , drop = FALSE], peak.summary = peakSummary[rowIdx,])
+    
+    # beta <- betas[betaFilter,][rowIdx, , drop = FALSE]
+    # probeId <- rownames(beta)
+    # 
+    # histData <- data.frame("beta" = beta)
+    # 
+    # bandwidthType = NULL
+    # if (is.na(BANDWIDTH_TYPE)) {
+    #   bandwidthType <- "nrd0"
+    # } else if (bandwidthType == "sheatherJones") {
+    #   bandwidthType <- bw.SJ(row.data)
+    # }
+    # 
+    # fittedDensity <- density(beta, from = 0, to = 1, n = NUM_BREAKS, 
+    #         adjust = input$densityAdjust, bw = bandwidthType,
+    #         kernel = KERNEL_TYPE)
+    # 
+    # fittedDensityDF <- data.frame(x = fittedDensity$x, y = fittedDensity$y)
+    # dataFrameForMaxima <- data.frame(beta = round(fittedDensity$x[detectedPeaks$maximaIdx], 2),
+    #                                  density = fittedDensity$y[detectedPeaks$maximaIdx])
+    # dataFrameForLeftMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$leftMinIdx], 2),
+    #                                   density = fittedDensity$y[detectedPeaks$leftMinIdx])
+    # dataFrameForRightMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$rightMinIdx], 2),
+    #                                    density = fittedDensity$y[detectedPeaks$rightMinIdx])
+    # 
+    # ggHist <- ggplot(histData, aes(x = beta)) +
+    #   geom_histogram(aes(y = after_stat(density)), 
+    #                  binwidth = 1 / input$numHistogramBinsOneProbe) +
+    #   labs(title = paste("Beta distribution for Probe", probeId),
+    #        x = "Beta",
+    #        y = "Density") +
+    #   xlim(-0.05, 1.05) + 
+    #   theme(panel.grid.major = element_blank(), 
+    #         panel.grid.minor = element_blank(),
+    #         panel.background = element_blank(), 
+    #         axis.line = element_line(colour = "black")) +
+    #   geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"), 
+    #             linewidth = 1) +
+    #   geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
+    #   geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
+    #   geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
+    #   scale_color_manual(
+    #     name = "Legend",
+    #     values = c(
+    #       "Density Estimate" = "#00588B", 
+    #       "Maxima" = "#B2DC3C", 
+    #       "Minima" = "#009B95"
+    #     )
+    #   )
+    # 
+    # ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
+  })
+  
+  # output$selectedRow <- renderPrint({
+  #   selected <- input$peakSummaryTable_rows_selected
+  #   if(length(selected)) {
+  #     print(selected)
+  #   } else {
+  #     print("No row selected")
+  #   }
+  # })
+  
+  # output$probeVisualFromPeakSummary <- renderPlot({
+  #   req(getProbeVisualFromPeakSummary())
+  #   getProbeVisualFromPeakSummary()  # Return the plotly object
+  # })
   
   # Define a download handler
   output$downloadPeakSummary <- downloadHandler(

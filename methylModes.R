@@ -51,6 +51,7 @@ methylModes <- function(row.data = NULL) {
     for (p in seq_along(propSample)) {
       propSample[p] <- mean(row.data > leftMinx[p] & row.data < rightMinx[p])
     }
+    
     detected$propSample <- propSample
     belowCutoff <- propSample < proportionSample
     ### end proportionSample check ###
@@ -84,7 +85,7 @@ methylModes <- function(row.data = NULL) {
   # Step 3: SPACING filter - if any peaks are too close together, compare them 
   # to their neighbors and merge shorter peaks into the tallest
   xValues <- probeDensityEst$x[detected$maximaIdx]
-  checkCrowding <- diff(xValues) <= personalSpace
+  checkCrowding <- diff(xValues) <= peakDistance
   
   if (sum(checkCrowding) > 0) {
     # Every other value is the number of clustered points

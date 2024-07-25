@@ -1,12 +1,8 @@
 ##### Standard thresholding parameters #####
 # Minimum percent of the sample a peak represents
-proportionSample = 0.01
+proportionSample = 0.05
 # Minimum space between peaks on the x axis
-personalSpace = 0.10
-# # Between two adjacent peaks, this is the maximum ratio of the minima height to 
-# # the shorter of two peaks with nearly equal or equal height
-# maxDipRatio = 0.75
-# minDipRatio = 0.50
+peakDistance = 0.10
 
 ##### Advanced parameters for smoothing #####
 bwOptions <- c(NA, "sheatherJones")
