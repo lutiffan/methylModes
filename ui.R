@@ -98,12 +98,12 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         #### Individual probe options ####
                         conditionalPanel(
                           condition = "input.analysisType == 'individual'",
-                          textInput("probeId", "Probe ID", value = ""),
-                          actionButton("runProbe", "Run on Selected Probe", 
-                                       disabled = TRUE),
+                          textInput("probeId", "Enter probe ID", value = ""),
+                          # actionButton("runProbe", "Run on Selected Probe", 
+                          #              disabled = TRUE),
                           div(style = "margin-bottom: 10px;"),
-                          actionButton("runProbeRandom", "Run on Randomly 
-                                       Selected Probe", disabled = TRUE),
+                          h5("Alternatively, you can..."),
+                          actionButton("runProbeRandom", "View a random probe", disabled = TRUE),
                           div(style = "margin-bottom: 10px;")
                         ),
                         #### Multi-probe options ####
@@ -115,10 +115,11 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                                    "Base pair range*" = "basePair")),
                           conditionalPanel(
                             condition = "input.region == 'chromosome'",
-                            uiOutput("chromosomeSelect")
+                            uiOutput("chromosomeSelectWhole")
                           ),
                           conditionalPanel(
                             condition = "input.region == 'basePair'",
+                            uiOutput("chromosomeSelectPartial"),
                             uiOutput("basePairRangeSelect")
                           ),
                           conditionalPanel(
@@ -160,9 +161,14 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           h4("Multiple Probe Analysis"),
                           shinyjs::disabled(downloadButton("downloadPeakSummary",
                                                            "Download Results")),
-                          withSpinner(plotlyOutput("peakCountBar")),
-                          # plotOutput("peakSummaryPreview"),
-                          plotOutput("probeVisualFromPeakSummary"),
+                          checkboxInput("showDensityMultiProbe", 
+                                        label = "Display density estimate curve",
+                                        value = TRUE),
+                          checkboxInput("showMinimaMultiProbe",
+                                        label = "Display detected peak boundaries",
+                                        value = FALSE),
+                          tableOutput("resultSummaryTable"),
+                          plotlyOutput("probeVisualFromPeakSummary"),
                           DT::dataTableOutput("peakSummaryTable")
                           # verbatimTextOutput("selectedRow")
                         )

@@ -56,9 +56,9 @@ function(input, output) {
   outputOptions(output, "missingEPICV2Annotation", suspendWhenHidden = FALSE)
   
   getAnnotation <- reactive({
-    req(input$arrayType)
+    if (is.null(input$arrayType)) return(NULL)
     betas <- getBetas()
-    if (is.null(betas)) return()
+    if (is.null(betas)) return(NULL)
     
     if (input$arrayType == "il450k") {
       if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
@@ -85,6 +85,8 @@ function(input, output) {
       }
       
       library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
+    } else {
+      simpleError("Invalid annotation package selected.")
     }
 
     annotationData <- data.frame(Chromosome = 
@@ -115,7 +117,7 @@ function(input, output) {
       geom_histogram(aes(y = after_stat(density)), 
                      binwidth = 1 / input$numHistogramBinsBetaOverview) +
       geom_line(aes(y = after_stat(density), ), stat = 'density') +
-      labs(title = "Density of Average Methylation Proportion Per Probe",
+      labs(title = "Mean Methylation Across Probes",
            x = "Beta",
            y = "Density") + 
       theme(panel.grid.major = element_blank(), 
@@ -202,8 +204,21 @@ function(input, output) {
   
   ##### Probe-level analysis #####
   
-  # Reactive value to track updates needed for the eventReactive
-  probeUpdate <- reactiveVal(NULL)
+  # # Reactive value to track updates needed for the eventReactive
+  # probeUpdate <- reactiveVal(NULL)
+  
+  # Reactive value to track the probe parameters
+  probeParams <- reactive({
+    list(
+      probeId = input$probeId,
+      proportionSample = input$proportionSample,
+      peakDistance = input$peakDistance,
+      triggeredBy = input$runProbe + input$runProbeRandom,  # Summing button clicks to create a new trigger
+      showDensity = input$showDensitySingleProbe,
+      showMinima = input$showMinimaSingleProbe,
+      numHistogramBins = input$numHistogramBinsOneProbe
+    )
+  })
   
   observeEvent(input$runProbeRandom, {
     req(input$betaFile$datapath)
@@ -212,12 +227,12 @@ function(input, output) {
 
     updateTextInput(inputId = "probeId", value = randomProbeId)
     
-    probeUpdate(randomProbeId)
+    # probeUpdate(randomProbeId)
   })
   
-  observeEvent(input$runProbe, {
-    probeUpdate(input$probeId)
-  })
+  # observeEvent(input$runProbe, {
+  #   probeUpdate(input$probeId)
+  # })
   
   # Will set to TRUE when individual-probe visual is created
   plotCreatedProbeVisual <- reactiveVal(FALSE)
@@ -229,20 +244,20 @@ function(input, output) {
   outputOptions(output, "plotCreatedProbeVisual", suspendWhenHidden = FALSE)
   
   #### Set up graph and table after analyzing a single probe ####
-  getSingleProbeSummary <- eventReactive(probeUpdate(), {
+  getSingleProbeSummary <- eventReactive(probeParams(), {
     betas <- getBetas()
     if (is.null(betas)) return()
     
     # Set MethylModes parameters
-    proportionSample <<- input$proportionSample
-    peakDistance <<- input$peakDistance
+    proportionSample <<- probeParams()$proportionSample
+    peakDistance <<- probeParams()$peakDistance
     kernelType <<- KERNEL_TYPE
     bandwidthType <<- BANDWIDTH_TYPE
     numBreaks <- NUM_BREAKS
     densityAdjust <- input$densityAdjust
     pushToZero <- input$pushToZero
-    
-    probeId <- probeUpdate()
+
+    probeId <- probeParams()$probeId
     rowId <- which(rownames(betas) == probeId)
 
     methylModes(row.data = betas[rowId,])
@@ -286,19 +301,17 @@ function(input, output) {
     dataFrameForRightMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$rightMinIdx], 2),
                                        density = fittedDensity$y[detectedPeaks$rightMinIdx])
     
-    probeId <- probeUpdate()
+    probeId <- probeParams()$probeId
     rowId <- which(rownames(betas) == probeId)
 
-    # histData <- betas[rowId,]
     histData <- data.frame("beta" = betas[rowId,])
-    # hist(histData$beta, breaks = 50)
     
     # Colors chosen using the following code: 
     # hcl.colors(3, palette = 'viridis')
     # Add points for the peaks (maxima and minima) using the correctly structured data frames
     ggHist <- ggplot(histData, aes(x = beta)) +
       geom_histogram(aes(y = after_stat(density)), 
-                     binwidth = 1 / input$numHistogramBinsOneProbe) +
+                     binwidth = 1 / probeParams()$numHistogramBins) +
       labs(title = paste("Beta distribution for Probe", probeId),
            x = "Beta",
            y = "Density") +
@@ -313,18 +326,18 @@ function(input, output) {
         values = c(
           "Density Estimate" = "#00588B", 
           "Maxima" = "#B2DC3C", 
-          "Minima" = "#009B95"
+          "Minima (peak boundaries)" = "#009B95"
         )
       )
     
-    if (input$showDensitySingleProbe) {
+    if (probeParams()$showDensity) {
       ggHist <- ggHist + 
         geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"))
     }
-    if (input$showMinimaSingleProbe) {
+    if (probeParams()$showMinima) {
       ggHist <- ggHist + 
-        geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
-        geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3)
+        geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima (peak boundaries)"), size = 3) +
+        geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima (peak boundaries)"), size = 3)
     }
     
     ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
@@ -333,8 +346,6 @@ function(input, output) {
     plotCreatedProbeVisual(TRUE)
     return(ggHistPlotly)
   })
-  
-
   
   output$probeVisual <- renderPlotly({
     req(getProbeVisualAdHoc())
@@ -345,6 +356,8 @@ function(input, output) {
   getMultiProbeSummary <- eventReactive(input$runMultiProbe, {
     betas <- getBetas()
     if (is.null(betas)) return()
+    
+    req(betaFilter())
     
     # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
 
@@ -397,6 +410,17 @@ function(input, output) {
     ggplotly(p)
   })
   
+  output$resultSummaryTable <- renderTable({
+    req(input$runMultiProbe)
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+    
+    counts <- peakSummary[, .N, by = numPeaks]
+    counts$numPeaks <- as.integer(counts$numPeaks)
+    colnames(counts)[2] <- "Count"
+    counts
+  })
+  
   output$peakSummaryPreview <- renderPlot({
     peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
@@ -441,16 +465,27 @@ function(input, output) {
                 list(mode = "single",
                      target = 'row+column',
                      selected = list(
-                       rows = 1,
+                       rows = which.max(peakSummary$numPeaks),
                        cols = c())),
               filter = "top",
               options = list(columnDefs = list(
                 list(searchable = FALSE, targets = c(4, 5, 6)) 
-              ))
+              ),
+              order = list(list(2, 'desc')))
     )
   })
   
-  output$probeVisualFromPeakSummary <- renderPlot({
+  # Reactive expression to track the selected row
+  multiProbeParams <- reactive({
+    list(
+      selectedRow = input$peakSummaryTable_rows_selected,
+      showDensity = input$showDensityMultiProbe,
+      showMinima = input$showMinimaMultiProbe
+    )
+  })
+  #### TODO ####
+  
+  getProbeVisualFromPeakSummary <- eventReactive(multiProbeParams(), {
     betas <- getBetas()
     if (is.null(betas)) return()
     
@@ -459,86 +494,92 @@ function(input, output) {
     
     peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
-
+    
     req(getMultiProbeSummary())
     
-    # output$selectedRow <- renderPrint({
-    #   selected <- input$peakSummaryTable_rows_selected
-    #   if(length(selected)) {
-    #     print(selected)
-    #   } else {
-    #     print("No row selected")
-    #   }
-    # })
+    req(multiProbeParams()$selectedRow)  # Ensures that the reactive expression has a value
     
-    rowIdx <- input$peakSummaryTable_rows_selected
-    peakSummaryPlot(beta.data = betas[betaFilter,][rowIdx, , drop = FALSE], peak.summary = peakSummary[rowIdx,])
+    beta.data <- betas[betaFilter,][multiProbeParams()$selectedRow, , drop = FALSE]
+    peak.summary <- peakSummary[multiProbeParams()$selectedRow,]
     
-    # beta <- betas[betaFilter,][rowIdx, , drop = FALSE]
-    # probeId <- rownames(beta)
-    # 
-    # histData <- data.frame("beta" = beta)
-    # 
-    # bandwidthType = NULL
-    # if (is.na(BANDWIDTH_TYPE)) {
-    #   bandwidthType <- "nrd0"
-    # } else if (bandwidthType == "sheatherJones") {
-    #   bandwidthType <- bw.SJ(row.data)
-    # }
-    # 
-    # fittedDensity <- density(beta, from = 0, to = 1, n = NUM_BREAKS, 
-    #         adjust = input$densityAdjust, bw = bandwidthType,
-    #         kernel = KERNEL_TYPE)
-    # 
-    # fittedDensityDF <- data.frame(x = fittedDensity$x, y = fittedDensity$y)
-    # dataFrameForMaxima <- data.frame(beta = round(fittedDensity$x[detectedPeaks$maximaIdx], 2),
-    #                                  density = fittedDensity$y[detectedPeaks$maximaIdx])
-    # dataFrameForLeftMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$leftMinIdx], 2),
-    #                                   density = fittedDensity$y[detectedPeaks$leftMinIdx])
-    # dataFrameForRightMin <- data.frame(beta = round(fittedDensity$x[detectedPeaks$rightMinIdx], 2),
-    #                                    density = fittedDensity$y[detectedPeaks$rightMinIdx])
-    # 
-    # ggHist <- ggplot(histData, aes(x = beta)) +
-    #   geom_histogram(aes(y = after_stat(density)), 
-    #                  binwidth = 1 / input$numHistogramBinsOneProbe) +
-    #   labs(title = paste("Beta distribution for Probe", probeId),
-    #        x = "Beta",
-    #        y = "Density") +
-    #   xlim(-0.05, 1.05) + 
-    #   theme(panel.grid.major = element_blank(), 
-    #         panel.grid.minor = element_blank(),
-    #         panel.background = element_blank(), 
-    #         axis.line = element_line(colour = "black")) +
-    #   geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"), 
-    #             linewidth = 1) +
-    #   geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
-    #   geom_point(data = dataFrameForLeftMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
-    #   geom_point(data = dataFrameForRightMin, aes(x = beta, y = density, color = "Minima"), size = 3) +
-    #   scale_color_manual(
-    #     name = "Legend",
-    #     values = c(
-    #       "Density Estimate" = "#00588B", 
-    #       "Maxima" = "#B2DC3C", 
-    #       "Minima" = "#009B95"
-    #     )
-    #   )
-    # 
-    # ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
+    if (is.na(BANDWIDTH_TYPE)) {
+      bandwidth = "nrd0"
+    } else if (bandwidthType == "sheatherJones") {
+      bandwidth = bw.SJ(betas[row.id,])
+    }
+    
+    fittedDensity <- density(beta.data, from = 0, to = 1, n = numBreaks, 
+                             adjust = densityAdjust, bw = bandwidth)
+    
+    detectedPeaks <- unlist(peak.summary$peakLocations)
+
+    detectedMins <- c(unlist(peak.summary$leftMin), 
+                      unlist(peak.summary$rightMin)[peak.summary$numPeaks])
+    
+    # Place the detected peaks and minima on the fitted line
+    fittedPeaks <- numeric(length(detectedPeaks))
+    for (p in 1:length(detectedPeaks)) {
+      closestIndex <- which.min(abs(fittedDensity$x - detectedPeaks[p]))
+      fittedPeaks[p] <- fittedDensity$y[closestIndex]
+    }
+    
+    fittedMins <- numeric(length(detectedMins)) 
+    for (m in 1:length(detectedMins)) {
+      closestIndex <- which.min(abs(fittedDensity$x - detectedMins[m]))
+      fittedMins[m] <- fittedDensity$y[closestIndex]
+    }
+    
+    fittedDensityDF <- data.frame(x = fittedDensity$x, y = fittedDensity$y)
+    dataFrameForMaxima <- data.frame(beta = detectedPeaks,
+                                     density = fittedPeaks)
+    dataFrameForMinima <- data.frame(beta = detectedMins,
+                                      density = fittedMins)
+    
+    histData <- data.frame("beta" = as.numeric(beta.data))
+    
+    # Colors chosen using the following code: 
+    # hcl.colors(3, palette = 'viridis')
+    # Add points for the peaks (maxima and minima) using the correctly structured data frames
+    ggHist <- ggplot(histData, aes(x = beta)) +
+      geom_histogram(aes(y = after_stat(density)), 
+                     binwidth = 1 / probeParams()$numHistogramBins) +
+      labs(title = paste("Beta distribution for Probe", peak.summary$probeName),
+           x = "Beta",
+           y = "Density") +
+      xlim(-0.05, 1.05) + 
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(), 
+            axis.line = element_line(colour = "black")) +
+      geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
+      scale_color_manual(
+        name = "Legend",
+        values = c(
+          "Density Estimate" = "#00588B", 
+          "Maxima" = "#B2DC3C", 
+          "Minima (peak boundaries)" = "#009B95"
+        )
+      )
+    
+    if (multiProbeParams()$showDensity) {
+      ggHist <- ggHist + 
+        geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"))
+    }
+    if (multiProbeParams()$showMinima) {
+      ggHist <- ggHist + 
+        geom_point(data = dataFrameForMinima, aes(x = beta, y = density, color = "Minima (peak boundaries)"), size = 3)
+    }
+    
+    ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
+    
+    # peakSummaryPlot(beta.data = betas[betaFilter,][multiProbeParams()$selectedRow, , drop = FALSE], 
+    #                 peak.summary = peakSummary[multiProbeParams()$selectedRow,])
+    ggHistPlotly
   })
   
-  # output$selectedRow <- renderPrint({
-  #   selected <- input$peakSummaryTable_rows_selected
-  #   if(length(selected)) {
-  #     print(selected)
-  #   } else {
-  #     print("No row selected")
-  #   }
-  # })
-  
-  # output$probeVisualFromPeakSummary <- renderPlot({
-  #   req(getProbeVisualFromPeakSummary())
-  #   getProbeVisualFromPeakSummary()  # Return the plotly object
-  # })
+  output$probeVisualFromPeakSummary <- renderPlotly({
+    getProbeVisualFromPeakSummary()
+  })
   
   # Define a download handler
   output$downloadPeakSummary <- downloadHandler(
@@ -559,20 +600,40 @@ function(input, output) {
     intersect(allChromosomes, unique(annotationData$Chromosome))
   })
   
-  output$chromosomeSelect <- renderUI({
+  output$chromosomeSelectWhole <- renderUI({
     req(uniqueChromosomes()) 
-    selectInput("selectedChromosome", "Choose Chromosome:",
+    selectInput("selectedChromosomeWhole", "Choose Chromosome:",
                 choices = uniqueChromosomes(),
                 selected = uniqueChromosomes()[1])
   })
   
+  output$chromosomeSelectPartial <- renderUI({
+    req(uniqueChromosomes()) 
+    selectInput("selectedChromosomePartial", "Choose Chromosome:",
+                choices = uniqueChromosomes(),
+                selected = uniqueChromosomes()[1])
+  })
+  
+  # chromosomeToSubset <- reactive({
+  #   input$selectedChromosomePartial
+  # })
+  # 
+  # # Get minimum and maximum base pair locations from data
+  # basePairMinMax <- eventReactive(chromosomeToSubset(), {
+  #   annotationData <- getAnnotation()
+  #   if (is.null(annotationData)) return(NULL)
+  # 
+  #   list("bpMin" = min(annotationData$Position[annotationData$Chromosome == chromosomeToSubset()]), 
+  #        "bpMax" = max(annotationData$Position[annotationData$Chromosome == chromosomeToSubset()]))
+  # })
+  
   # Get minimum and maximum base pair locations from data
-  basePairMinMax <- reactive({
+  basePairMinMax <- eventReactive(selectedRegion()$chromosomeToSubset, {
     annotationData <- getAnnotation()
     if (is.null(annotationData)) return(NULL)
     
-    list("bpMin" = min(annotationData$Position), 
-         "bpMax" = max(annotationData$Position))
+    list("bpMin" = min(annotationData$Position[annotationData$Chromosome == selectedRegion()$chromosomeToSubset]), 
+         "bpMax" = max(annotationData$Position[annotationData$Chromosome == selectedRegion()$chromosomeToSubset]))
   })
   
   output$basePairRangeSelect <- renderUI({
@@ -585,20 +646,34 @@ function(input, output) {
                       max = basePairMinMax()$bpMax)
   })
   
+  selectedRegion <- reactive({
+    list(
+      region = input$region,
+      chromosomeWhole = input$selectedChromosomeWhole,
+      chromosomeToSubset = input$selectedChromosomePartial,
+      annotation = input$arrayType
+    )
+  })
+  
   # Create a vector used to subset the beta matrix
-  betaFilter <- reactive({
+  betaFilter <- eventReactive(selectedRegion(), {
+    betas <- getBetas()
+    if (is.null(betas)) return(NULL)
+
     annotationData <- getAnnotation()
-    if (is.null(annotationData)) return(NULL)
     
-    if (input$region == "chromosome") {
-      req(input$selectedChromosome)
-      rowsToKeep <- annotationData$Chromosome == input$selectedChromosome
-    } else if (input$region == "basePair") {
+    if (is.null(annotationData)) return(rep(TRUE, nrow(betas)))
+    
+    if (selectedRegion()$region == "chromosome") {
+      req(input$selectedChromosomeWhole)
+      rowsToKeep <- annotationData$Chromosome == input$selectedChromosomeWhole
+    } else if (selectedRegion()$region == "basePair") {
       req(input$selectedBasePairRange)
       rowsToKeep <- annotationData$Position >= input$selectedBasePairRange[1] & 
-        annotationData$Position <= input$selectedBasePairRange[2]
+        annotationData$Position <= input$selectedBasePairRange[2] & 
+        annotationData$Chromosome == input$selectedChromosomePartial
     } else {
-      rowsToKeep <- TRUE
+      return(rep(TRUE, nrow(betas)))
     }
 
     rowsToKeep
@@ -608,7 +683,10 @@ function(input, output) {
     betas <- getBetas()
     if (is.null(betas)) return("")
     betaFilter <- betaFilter()
-    
+
+    annotationData <- getAnnotation()
+    if (is.null(annotationData)) simpleError("Annotation package required.")
+
     nProbe <- sum(betaFilter)
     paste(nProbe, "probes selected.")
   })
