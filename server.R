@@ -386,6 +386,23 @@ function(input, output) {
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
     
+    # Label invariant and hypo/hypermethylated CpG sites
+    lowVariance <- logical(nrow(peakSummary))
+    for (i in 1:nrow(peakSummary)) {
+      if (peakSummary$numPeaks[i] > 1) {
+        lowVariance[i] <- NA
+      } else {
+        lowVariance[i] <- peakSummary$peakVariance[i] < input$varianceThreshold
+      }
+    }
+    
+    hypoMethylated <- unlist(peakSummary$meanBeta) < input$hypoThreshold
+    hyperMethylated <- unlist(peakSummary$meanBeta) > input$hyperThreshold
+    
+    peakSummary[, lowVariance := lowVariance]
+    peakSummary[, hypoMethylated := hypoMethylated]
+    peakSummary[, hyperMethylated := hyperMethylated]
+    
     return(peakSummary)
   })
   
@@ -410,15 +427,71 @@ function(input, output) {
     ggplotly(p)
   })
   
-  output$resultSummaryTable <- renderTable({
+  # Will set to TRUE when probe-average plot on "get started" page is created
+  tableCreatedResultSummary <- reactiveVal(FALSE)
+  
+  # Updates according to the plotCreatedBetaOverview reactive value
+  output$tableCreatedResultSummary <- reactive({
+    tableCreatedResultSummary()
+  })
+  
+  outputOptions(output, "tableCreatedResultSummary", suspendWhenHidden = FALSE)
+  
+  output$modalityTable <- renderTable(align = 'l', {
     req(input$runMultiProbe)
     peakSummary <- getMultiProbeSummary()
     if (is.null(peakSummary)) return()
     
     counts <- peakSummary[, .N, by = numPeaks]
     counts$numPeaks <- as.integer(counts$numPeaks)
-    colnames(counts)[2] <- "Count"
+    
+    colnames(counts) <- c("Peak Count/Modality", "Probes")
+
+    # Set this to TRUE so title display is triggered
+    tableCreatedResultSummary(TRUE)
+    
     counts
+  })
+  
+  output$flaggedProbesTableCounts <- renderTable(align = 'l', {
+    req(input$runMultiProbe)
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+    
+    # varianceString = paste0(sum(peakSummary$lowVariance, na.rm = TRUE), 
+    #                         " (", 
+    #                         round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
+    #                         "%)")
+    # hypoMethString = paste0(sum(peakSummary$hypoMethylated),
+    #                         " (",
+    #                         round(mean(peakSummary$hypoMethylated), 2) * 100,
+    #                         "%)")
+    # hyperMethString = paste0(sum(peakSummary$hyperMethylated),
+    #                          " (",
+    #                          round(mean(peakSummary$hyperMethylated), 2) * 100,
+    #                          "%)")
+    
+    # When processing entire arrays, counts get pretty large
+    varianceString = paste0(round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
+                            "%")
+    hypoMethString = paste0(round(mean(peakSummary$hypoMethylated), 2) * 100,
+                            "%")
+    hyperMethString = paste0(round(mean(peakSummary$hyperMethylated), 2) * 100,
+                             "%")
+    
+    data.frame("Low-Variance" = varianceString,
+               "Hypomethylated" = hypoMethString,
+               "Hypermethylated" = hyperMethString)
+  })
+  
+  output$flaggedProbesTablePercents <- renderTable(align = 'l', {
+    req(input$runMultiProbe)
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+    
+    data.frame("Low-Variance(%)" = mean(peakSummary$lowVariance, na.rm = TRUE),
+               "Hypomethylated(%)" = mean(peakSummary$hypoMethylated),
+               "Hypermethylated (%)" = mean(peakSummary$hyperMethylated))
   })
   
   output$peakSummaryPreview <- renderPlot({

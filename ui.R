@@ -69,7 +69,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           choices = c("Individual Probe" = "individual", 
                                       "Multiple Probe" = "multiProbe")
                         ),
-                        h4("Descriptive Thresholds for Peak Detection"),
+                        h4("Peak Detection Thresholds"),
                         numericInput(label = "ProportionSample",
                                      inputId = "proportionSample",
                                      value = proportionSample,
@@ -82,14 +82,14 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                      min = 0.00001,
                                      max = 0.99999),
                         helpText("Minimum distance between adjacent peaks"),
-                        h4("Smoothing parameters"),
+                        # h4("Smoothing parameters"),
                         # numericInput(label = "DensityAdjust",
                         #              inputId = "densityAdjust",
                         #              value = 1.5),
                         # numericInput(label = "Epsilon",
                         #              inputId = "pushToZero",
                         #              value = 1e-6),
-                        helpText("Default values are recommended for smoothing parameters."),
+                        # helpText("Default values are recommended for smoothing parameters."),
                         # helpText("The density() function fits very small floating-point",
                         #          "values to the data, creating tiny perturbations that ",
                         #          "reduce the accuracy of MethylModes. Setting a threshold ",
@@ -128,16 +128,31 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                             textOutput(outputId = "subsetDataDimensions"),
                           ),
                           helpText("*Requires that annotations for the array type are loaded (select on 'Get Started') page."),
-                          actionButton("runMultiProbe", "Run Multiple Probe Analysis", disabled = TRUE)
-                          # numericInput("rangeStart", "Range Start", value = NULL),
-                          # numericInput("rangeEnd", "Range End", value = NULL),
+                          h4("Optional Thresholds"),
+                          helpText("Label low-variance, hypomethylated, and hypermethylated CpG sites"),
+                          numericInput(inputId = "varianceThreshold",
+                                       label = "Variance",
+                                       value = 1e-5,
+                                       min = 0,
+                                       max = 1),
+                          numericInput(inputId = "hypoThreshold",
+                                       label = "Hypomethylation",
+                                       value = 0.3,
+                                       min = 0,
+                                       max = 0.5),
+                          numericInput(input = "hyperThreshold",
+                                       label = "Hypermethylation",
+                                       value = 0.7,
+                                       min = 0.5,
+                                       max = 1),
+                          actionButton("runMultiProbe", "Run multiple-probe analysis", disabled = TRUE)
                         )
                       ), # sidebarPanel
                       mainPanel(
                         #### Individual probe display ####
                         conditionalPanel(
                           condition = "input.analysisType == 'individual'",
-                          h4("Individual Probe Analysis"),
+                          h3("Individual Probe Analysis"),
                           checkboxInput("showDensitySingleProbe", 
                                         label = "Display density estimate curve",
                                         value = TRUE),
@@ -153,137 +168,30 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                         value = 50)
                           ),
                           tableOutput('probeTable')
-                          # plotOutput(outputId = "probeVisualBaseR")
                         ),
                         #### Multi-probe display ####
                         conditionalPanel(
                           condition = "input.analysisType == 'multiProbe'",
-                          h4("Multiple Probe Analysis"),
+                          h3("Multiple Probe Analysis"),
                           shinyjs::disabled(downloadButton("downloadPeakSummary",
-                                                           "Download Results")),
+                                                           "Download results")),
                           checkboxInput("showDensityMultiProbe", 
                                         label = "Display density estimate curve",
                                         value = TRUE),
                           checkboxInput("showMinimaMultiProbe",
                                         label = "Display detected peak boundaries",
                                         value = FALSE),
-                          tableOutput("resultSummaryTable"),
+                          conditionalPanel(
+                            condition = "output.tableCreatedResultSummary",
+                            h4("Result Summary")
+                          ),
+                          tableOutput("modalityTable"),
+                          tableOutput("flaggedProbesTableCounts"),
                           plotlyOutput("probeVisualFromPeakSummary"),
                           DT::dataTableOutput("peakSummaryTable")
-                          # verbatimTextOutput("selectedRow")
                         )
                         )
-                      ), # Run MethylModes
-             # tabPanel("Run MethylModes",
-             #          sidebarPanel(
-             #            radioButtons(
-             #              "analysisType",
-             #              "Select Analysis Type:",
-             #              choices = c("Individual Probe" = "individual", 
-             #                          "Whole Genome" = "multiProbe")
-             #            ),
-             #            h4("Hyperparameters for Probe-Level Analysis"),
-             #            numericInput(label = "proportionSample",
-             #                         inputId = "proportionSampleProbe",
-             #                         value = 0.05),
-             #            helpText("Minimum proportion of sample considered to be a peak"),
-             #            numericInput(label = "peakDistance",
-             #                         inputId = "peakDistanceProbe",
-             #                         value = 0.1),
-             #            helpText("Minimum distance between adjacent peaks"),
-             #            h4("Smoothing parameters"),
-             #            numericInput(inputId = "densityAdjustProbe", "density() 'adjust' parameter",
-             #                         value = 1.5),
-             #            numericInput(inputId = "pushToZeroProbe",
-             #                         "Threshold for numbers small enough to be set to zero",
-             #                         value = 1e-6),
-             #            helpText("The density() function fits very small floating-point",
-             #                     "values to the data, creating tiny perturbations that ",
-             #                     "reduce the accuracy of MethylModes. Setting a threshold ",
-             #                     "under which small values are considered equivalent ",
-             #                     "to zero mitigates this issue."),
-             #            uiOutput("conditionalSidebarButtons")
-             #          ), # sidebarPanel
-             #          mainPanel(
-             #            uiOutput("conditionalPlots")
-             #          )
-             # ), # Run MethylModes
-             # tabPanel("Individual Probe Analysis",
-             #          sidebarPanel(
-             #            h4("Hyperparameters for Probe-Level Analysis"),
-             #            numericInput(inputId = "proportionSampleProbe",
-             #                         "Minimum proportion of sample considered to be a peak",
-             #                         value = 0.05),
-             #            numericInput(inputId = "peakDistanceProbe",
-             #                         "Minimum distance between adjacent peaks",
-             #                         value = 0.1),
-             #            h4("Smoothing parameters"),
-             #            numericInput(inputId = "densityAdjustProbe", "density() 'adjust' parameter",
-             #                         value = 1.5),
-             #            numericInput(inputId = "pushToZeroProbe",
-             #                         "Threshold for numbers small enough to be set to zero",
-             #                         value = 1e-6),
-             #            helpText("The density() function fits very small floating-point",
-             #                     "values to the data, creating tiny perturbations that ",
-             #                     "reduce the accuracy of MethylModes. Setting a threshold ",
-             #                     "under which small values are considered equivalent ",
-             #                     "to zero mitigates this issue."),
-             #            h4("Graph Display Options"),
-             #            numericInput(inputId = "numHistogramBins", "Number of histogram bins", value = 50),
-             #            shinyjs::disabled(textInput("probeId", "Probe Id",
-             #                                           value = "cg27399079")),
-             #            # add_busy_spinner(spin = "self-building-square",
-             #            #                  timeout = 500,
-             #            #                  position = "top-right"),
-             #            shinyjs::disabled(actionButton("runProbe", "Run on Selected Probe")),
-             #            div(style = "margin-bottom: 10px;"),
-             #            shinyjs::disabled(actionButton("runProbeRandom", "Run on Randomly Selected Probe"))
-             #          ),
-             #          mainPanel(
-             #            # h4("Summary of Probe-Level MethylModes Results"),
-             #            # withSpinner(plotlyOutput(outputId = "probeVisual")),
-             #            # plotOutput(outputId = "probeVisualBaseR")
-             #          )
-             # ), # End of "Individual probe analysis" tab
-             ##### Beta Matrix-level analysis #####
-             # tabPanel("Whole Genome Analysis",
-             #          sidebarPanel(
-             #            h4("Hyperparameters for Beta Matrix-Level Analysis"),
-             #            numericInput(inputId = "proportionSampleBetaMatrix",
-             #                         "Minimum proportion of sample considered to be a peak",
-             #                         value = 0.05),
-             #            numericInput(inputId = "peakDistanceBetaMatrix",
-             #                         "Minimum distance between adjacent peaks",
-             #                         value = 0.1),
-             #            h4("Smoothing parameters"),
-             #            numericInput(inputId = "densityAdjustBetaMatrix", "density() 'adjust' parameter",
-             #                         value = 1.5),
-             #            numericInput(inputId = "pushToZeroBetaMatrix",
-             #                         "Threshold for numbers small enough to be set to zero",
-             #                         value = 1e-6),
-             #            helpText("The density() function fits very small floating-point",
-             #                     "values to the data, creating tiny perturbations that ",
-             #                     "reduce the accuracy of MethylModes. Setting a threshold ",
-             #                     "under which small values are considered equivalent ",
-             #                     "to zero mitigates this issue."),
-             #            shinyjs::disabled(numericInput(inputId = "rangeStartBetaMatrix", "Start of range of beta matrix rows",
-             #                                           value = 1)),
-             #            shinyjs::disabled(numericInput(inputId = "rangeEndBetaMatrix", "End of range of beta matrix rows",
-             #                                           value = 1)),
-             #            add_busy_spinner(spin = "self-building-square",
-             #                             timeout = 500,
-             #                             position = "top-right"),
-             #            shinyjs::disabled(actionButton("runMultiProbe", "Run MethylModes"))
-             #          ),
-             #          mainPanel(
-             #            h4("Preview of Beta Matrix-Level MethylModes Results"),
-             #            shinyjs::disabled(downloadButton("downloadPeakSummary",
-             #                                             "Download Results")),
-             #            withSpinner(plotlyOutput("peakCountBar")),
-             #            plotOutput("peakSummaryPreview"),
-             #            h3("Coming soon: view sorted MethylModes results (e.g. among multimodal probes, show probes with highest number of modes to fewest")
-             #          )
-             # ), # End of "Whole Genome Analysis" tab
+                      ), 
              tabPanel("Review and Analyze Results",
                       h3("Upload Previously Calculated Results"),
                       sidebarPanel(
