@@ -175,18 +175,23 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           h3("Multiple Probe Analysis"),
                           shinyjs::disabled(downloadButton("downloadPeakSummary",
                                                            "Download results")),
+                          conditionalPanel(
+                            condition = "output.tableCreatedResultSummary",
+                            h4("Summary")
+                          ),
+                          tableOutput("modalityTable"),
+                          tableOutput("flaggedProbesTableCounts"),
+                          # tableOutput("flaggedProbesTableCounts2"),
+                          conditionalPanel(
+                            condition = "output.tableCreatedResultSummary",
+                            h4("Preview")
+                          ),
                           checkboxInput("showDensityMultiProbe", 
                                         label = "Display density estimate curve",
                                         value = TRUE),
                           checkboxInput("showMinimaMultiProbe",
                                         label = "Display detected peak boundaries",
                                         value = FALSE),
-                          conditionalPanel(
-                            condition = "output.tableCreatedResultSummary",
-                            h4("Result Summary")
-                          ),
-                          tableOutput("modalityTable"),
-                          tableOutput("flaggedProbesTableCounts"),
                           plotlyOutput("probeVisualFromPeakSummary"),
                           DT::dataTableOutput("peakSummaryTable")
                         )

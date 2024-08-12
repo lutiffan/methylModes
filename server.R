@@ -1,12 +1,12 @@
 function(input, output) {
   # Arbitrarily set maximum file upload size to 100 GB
   # The real limit comes from the user's local memory limit
-  # Set to max memory?
+  # Is there a simple way to set this to max memory based on local machine?
   options(shiny.maxRequestSize = 100*1024^3)
   
   ##### Get Started #####
   
-  # Implicity returns betas as a reactive object
+  # Implicitly returns betas as a reactive object
   getBetas <- reactive({
     req(input$betaFile$datapath)
     
@@ -358,7 +358,7 @@ function(input, output) {
     if (is.null(betas)) return()
     
     req(betaFilter())
-    
+
     # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
 
     # Set MethylModes parameters
@@ -373,7 +373,7 @@ function(input, output) {
     # rangeEnd <- input$rangeEnd
     
     # totalRows = rangeEnd - rangeStart + 1
-    print(paste("Running in parallel on", availableCores(), "cores"))
+    print(paste("Running in parallel on", availableCores() - 1, "cores"))
     # Note that I had a bug here where I forgot to restrict the beta matrix
     # to the user-requested range! Fixed 6/27/24
     
@@ -385,7 +385,7 @@ function(input, output) {
     
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
-    
+
     # Label invariant and hypo/hypermethylated CpG sites
     lowVariance <- logical(nrow(peakSummary))
     for (i in 1:nrow(peakSummary)) {
@@ -402,7 +402,7 @@ function(input, output) {
     peakSummary[, lowVariance := lowVariance]
     peakSummary[, hypoMethylated := hypoMethylated]
     peakSummary[, hyperMethylated := hyperMethylated]
-    
+
     return(peakSummary)
   })
   
@@ -479,9 +479,28 @@ function(input, output) {
     hyperMethString = paste0(round(mean(peakSummary$hyperMethylated), 2) * 100,
                              "%")
     
-    data.frame("Low-Variance" = varianceString,
+    results <- data.frame("Low Variance" = varianceString,
                "Hypomethylated" = hypoMethString,
                "Hypermethylated" = hyperMethString)
+
+    colnames(results)[1] <- "Low-Variance"
+    
+    results
+  })
+  
+  output$flaggedProbesTableCounts2 <- renderTable(align = 'l', {
+    req(input$runMultiProbe)
+    peakSummary <- getMultiProbeSummary()
+    if (is.null(peakSummary)) return()
+    
+    nearCutoffPropSampleString = paste0(round(mean(peakSummary$nearCutoffPropSample, na.rm = TRUE), 2) * 100, "%")
+    nearCutoffPeakDistanceString = paste0(round(mean(peakSummary$nearCutoffPeakDistance, na.rm = TRUE), 2) * 100, "%")
+    
+    results <- data.frame("Near proportionSample Threshold" = nearCutoffPropSampleString,
+                          "Near peakDistance Threshold" = nearCutoffPeakDistanceString)
+    colnames(results) <- c("Near proportionSample Threshold", "Near peakDistance Threshold")
+    
+    results
   })
   
   output$flaggedProbesTablePercents <- renderTable(align = 'l', {
@@ -527,7 +546,6 @@ function(input, output) {
     peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance, 
                                                  FUN = listToString,
                                                  decimalPlaces = 6))
-    
     datatable(data.frame("probeName" = peakSummary$probeName,
                          "numPeaks" = as.factor(peakSummary$numPeaks),
                          "meanBeta" = round(peakSummary$meanBeta, 2),
@@ -559,13 +577,14 @@ function(input, output) {
   #### TODO ####
   
   getProbeVisualFromPeakSummary <- eventReactive(multiProbeParams(), {
+
     betas <- getBetas()
     if (is.null(betas)) return()
     
     betaFilter <- betaFilter()
-    if (is.null(betas)) return()
     
     peakSummary <- getMultiProbeSummary()
+    
     if (is.null(peakSummary)) return()
     
     req(getMultiProbeSummary())
@@ -580,7 +599,7 @@ function(input, output) {
     } else if (bandwidthType == "sheatherJones") {
       bandwidth = bw.SJ(betas[row.id,])
     }
-    
+
     fittedDensity <- density(beta.data, from = 0, to = 1, n = numBreaks, 
                              adjust = densityAdjust, bw = bandwidth)
     
@@ -633,7 +652,7 @@ function(input, output) {
           "Minima (peak boundaries)" = "#009B95"
         )
       )
-    
+
     if (multiProbeParams()$showDensity) {
       ggHist <- ggHist + 
         geom_line(data = fittedDensityDF, aes(x = x, y = y, color = "Density Estimate"))
@@ -644,7 +663,7 @@ function(input, output) {
     }
     
     ggHistPlotly <- ggplotly(ggHist, tooltip = "beta")
-    
+
     # peakSummaryPlot(beta.data = betas[betaFilter,][multiProbeParams()$selectedRow, , drop = FALSE], 
     #                 peak.summary = peakSummary[multiProbeParams()$selectedRow,])
     ggHistPlotly

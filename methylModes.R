@@ -20,7 +20,7 @@ methylModes <- function(row.data = NULL) {
   
   # # Step 1.5: use isZero to check if floating point values are close to zero
   # probeDensityEst$y[isZero(probeDensityEst$y)] <- 0
-  
+
   # Step 2: detect local maxima/minima
   detected <- localMinMax(probeDensityEst$y, zeroThreshold = pushToZero)
   #seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
@@ -39,6 +39,8 @@ methylModes <- function(row.data = NULL) {
   # }
   
   #seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
+  nearCutoffPropSample <- NA
+  nearCutoffPeakDistance <- NA
   
   # Step 2.5: Remove peaks that are below the proportion cutoff and have at 
   # least one boundary minima at zero
@@ -54,8 +56,10 @@ methylModes <- function(row.data = NULL) {
     
     detected$propSample <- propSample
     belowCutoff <- propSample < proportionSample
+    nearCutoffPropSample <- any(abs(propSample - proportionSample) <= 0.01)
     ### end proportionSample check ###
     
+    # Consider changing the "|" to "&" ?
     oneMinimaZero <- (probeDensityEst$y[detected$leftMinIdx] < pushToZero) | 
       (probeDensityEst$y[detected$rightMinIdx] < pushToZero)
     
@@ -85,9 +89,13 @@ methylModes <- function(row.data = NULL) {
   # Step 3: SPACING filter - if any peaks are too close together, compare them 
   # to their neighbors and merge shorter peaks into the tallest
   xValues <- probeDensityEst$x[detected$maximaIdx]
-  checkCrowding <- diff(xValues) <= peakDistance
+  spacings <- diff(xValues)
+  checkCrowding <- spacings <= peakDistance
+  # In the case of only one peak being present,
+  # sum(diff(0.5) < 0.1) == FALSE # Evaluates to TRUE
   
   if (sum(checkCrowding) > 0) {
+    nearCutoffPeakDistance <- any(abs(spacings - peakDistance) <= 0.01)
     # Every other value is the number of clustered points
     clusters <- rle(checkCrowding)$lengths + 1
     # clusteredPeakIdx contains indices for the vector detected$maximaIdx
@@ -162,5 +170,7 @@ methylModes <- function(row.data = NULL) {
   }
   
   
-  list("detected" = detected, "probeDensityEst" = probeDensityEst, "gap" = gap)
+  list("detected" = detected, "probeDensityEst" = probeDensityEst, "gap" = gap,
+       "nearCutoffPropSample" = nearCutoffPropSample,
+       "nearCutoffPeakDistance" = nearCutoffPeakDistance)
 }

@@ -32,7 +32,7 @@ fillPeakSummaryParallel <- function(betas = NULL) {
   # progressr::withProgressShiny(message = "Running MethylModes...", detail = "Starting...", expr = {
   #   
   #   # Setting up progressr
-  #   p <- progressr::progressor(along = 1:nrow(betas))
+  #   p <- progressr::progressor(steps = 1:nrow(betas))
   #   
   #   peakSummary <- foreach::foreach(idx = 1:nrow(betas), 
   #                                   .combine = "rbind",
@@ -91,7 +91,7 @@ fillPeakSummaryParallel <- function(betas = NULL) {
   withProgressShiny(message = "Running MethylModes...",
                     detail = "Starting...",
                     value = 0, {
-                      progressTracker <- progressor(along = betaIterator)
+                      progressTracker <- progressor(steps = betaIterator$length)
                       peakSummary <- foreach::foreach(probe = betaIterator,
                                                       .combine = "rbind",
                                                       .packages = c("foreach", "data.table"),

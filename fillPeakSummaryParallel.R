@@ -35,7 +35,7 @@ fillPeakSummaryParallel <- function(betas = NULL) {
                                   .export = c("methylModes",
                                               "localMinMax",
                                               "proportionSample",
-                                              "personalSpace",
+                                              "peakDistance",
                                               "kernelType",
                                               "bandwidthType",
                                               "numBreaks",
