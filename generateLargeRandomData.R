@@ -41,3 +41,10 @@ generate_gaussian_mixture_row <- function(num_cols) {
 
 # Generate the matrix
 gaussian_mixture_matrix <- t(replicate(num_rows, generate_gaussian_mixture_row(num_cols)))
+rownames(gaussian_mixture_matrix) <- paste0("test", 1:num_rows)
+colnames(gaussian_mixture_matrix) <- paste0("subject", 1:num_cols)
+
+# Save as a csv file. fwrite is fast but doesn't keep the row names
+write.table(gaussian_mixture_matrix, "largeRandomTestData.csv", row.names = TRUE)
+# test <- read.table("/home/lutiffan/github/methylModes/largeRandomTestData.csv",
+#                    header = TRUE, row.names = 1)
