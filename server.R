@@ -13,15 +13,16 @@ function(input, output) {
     fileType <- file_ext(input$betaFile$datapath)
     
     if (fileType %in% c("RDS", "rds")) {
-      readRDS(input$betaFile$datapath) 
+      betas <- readRDS(input$betaFile$datapath) 
     } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
-      as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
+      betas <-as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
     } else if (fileType %in% c("RDA", "rda")) {
-      load(file = input$betaFile$datapath)
+      betas <- load(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
     }
-    
+    # Sort beta matrix (important for matching with annotation data)
+    betas[order(rownames(betas)),]
   })
   
   output$wholeDataDimensions <- renderText({
@@ -32,71 +33,131 @@ function(input, output) {
     paste0("Found ", nProbe, " probes and ", nSample, " samples.")
   })
   
-  # Check whether annotation packages are already installed or not
-  missing450kAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylation450kanno.ilmn12.hg19"))))
-  missingEPICAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))))
-  missingEPICV2Annotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38"))))
-  
-  output$missing450kAnnotation <- reactive({
-    missing450kAnnotation()
+  output$numProbesAnalyzed <- renderUI({
+    betaFilter <- betaFilter()
+    nProbe <- sum(betaFilter)
+    h4(paste0("A total of ", nProbe, " probes were analyzed."))
   })
   
-  outputOptions(output, "missing450kAnnotation", suspendWhenHidden = FALSE)
+  # # Check whether annotation packages are already installed or not
+  # missing450kAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylation450kanno.ilmn12.hg19"))))
+  # missingEPICAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))))
+  # missingEPICV2Annotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38"))))
+  # 
+  # output$missing450kAnnotation <- reactive({
+  #   missing450kAnnotation()
+  # })
+  # 
+  # outputOptions(output, "missing450kAnnotation", suspendWhenHidden = FALSE)
+  # 
+  # output$missingEPICAnnotation <- reactive({
+  #   missingEPICAnnotation()
+  # })
+  # 
+  # outputOptions(output, "missingEPICAnnotation", suspendWhenHidden = FALSE)
+  # 
+  # output$missingEPICV2Annotation <- reactive({
+  #   missingEPICV2Annotation()
+  # })
+  # 
+  # outputOptions(output, "missingEPICV2Annotation", suspendWhenHidden = FALSE)
   
-  output$missingEPICAnnotation <- reactive({
-    missingEPICAnnotation()
-  })
-  
-  outputOptions(output, "missingEPICAnnotation", suspendWhenHidden = FALSE)
-  
-  output$missingEPICV2Annotation <- reactive({
-    missingEPICV2Annotation()
-  })
-  
-  outputOptions(output, "missingEPICV2Annotation", suspendWhenHidden = FALSE)
-  
-  getAnnotation <- reactive({
+  getAnnotationLocal <- reactive({
     if (is.null(input$arrayType)) return(NULL)
     betas <- getBetas()
     if (is.null(betas)) return(NULL)
     
     if (input$arrayType == "il450k") {
-      if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
-        BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
-        missing450kAnnotation(FALSE)
-      }
+      manifestFile <- fread(paste0(getwd(), "/IlluminaManifest450k.csv"))
       
-      library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-
     } else if (input$arrayType == "ilepic1") {
-      if (!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")) {
-        BiocManager::install("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")
-        missingEPICAnnotation(FALSE)
-      }
+      manifestFile <- fread(paste0(getwd(), "/IlluminaManifestEPIC.csv"))
       
-      # library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
-      # I think this one is more up-to-date
-      library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
-      
-    } else if (input$arrayType == "ilepic2") {
-      if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
-        BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
-        missingEPICV2Annotation(FALSE)
-      }
-      
-      library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
     } else {
       simpleError("Invalid annotation package selected.")
     }
-
-    annotationData <- data.frame(Chromosome = 
-                                   sub("chr", "", Locations[rownames(betas), "chr"]),
-                                 Island = Islands.UCSC[rownames(betas), 
-                                                       "Relation_to_Island"],
-                                 Position = Locations[rownames(betas), "pos"])
-
+    # TODO: get Epicv2 manifest data
+    # else if (input$arrayType == "ilepic2") {
+    #   if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
+    #     BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
+    #     missingEPICV2Annotation(FALSE)
+    #   }
+    #   
+    #   library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
+    # } 
+    
+    
+    # annotationData <- data.frame(Chromosome = 
+    #                                sub("chr", "", Locations[rownames(betas), "chr"]),
+    #                              Island = Islands.UCSC[rownames(betas), 
+    #                                                    "Relation_to_Island"],
+    #                              Position = Locations[rownames(betas), "pos"])
+    
+    # Keep only rows corresponding to probes that we have
+    manifestFile <- manifestFile[manifestFile$IlmnID %in% rownames(betas),]
+    # Now sort the probes in order of name
+    manifestFile <- manifestFile[order(manifestFile$IlmnID),]
+    
+    annotationData <- data.frame(Chromosome = manifestFile$CHR,
+                                 Island = manifestFile$Relation_to_UCSC_CpG_Island,
+                                 Position = manifestFile$MAPINFO)
+    
+    if (input$arrayType == "il450k") {
+      annotationData$SNP_within_10Bp <- manifestFile$Probe_SNPs_10
+      annotationData$SNP_10Bp_and_beyond <- manifestFile$Probe_SNPs
+    } else if (input$arrayType == "ilepic1") {
+      annotationData$SNP_distance <- manifestFile$SNP_DISTANCE
+    }
+    
+    # Replace empty strings in Island column with "OpenSea"
+    annotationData$Island[annotationData$Island == ""] <- "OpenSea"
     annotationData
   })
+  
+  # getAnnotation <- reactive({
+  #   if (is.null(input$arrayType)) return(NULL)
+  #   betas <- getBetas()
+  #   if (is.null(betas)) return(NULL)
+  #   
+  #   if (input$arrayType == "il450k") {
+  #     if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
+  #       BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
+  #       missing450kAnnotation(FALSE)
+  #     }
+  #     
+  #     library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+  # 
+  #   } else if (input$arrayType == "ilepic1") {
+  #     if (!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")) {
+  #       BiocManager::install("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")
+  #       missingEPICAnnotation(FALSE)
+  #     }
+  #     
+  #     # library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
+  #     # I think this one is more up-to-date
+  #     library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
+  #     
+  #   } 
+  #   # else if (input$arrayType == "ilepic2") {
+  #   #   if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
+  #   #     BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
+  #   #     missingEPICV2Annotation(FALSE)
+  #   #   }
+  #   #   
+  #   #   library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
+  #   # } 
+  #   else {
+  #     simpleError("Invalid annotation package selected.")
+  #   }
+  # 
+  #   annotationData <- data.frame(Chromosome = 
+  #                                  sub("chr", "", Locations[rownames(betas), "chr"]),
+  #                                Island = Islands.UCSC[rownames(betas), 
+  #                                                      "Relation_to_Island"],
+  #                                Position = Locations[rownames(betas), "pos"])
+  # 
+  #   annotationData
+  # })
   
   # Will set to TRUE when probe-average plot on "get started" page is created
   plotCreatedBetaOverview <- reactiveVal(FALSE)
@@ -139,7 +200,7 @@ function(input, output) {
     # )
     # names(relevantLabels) <- "Chromosome"
     
-    relevantLabels <- getAnnotation()
+    relevantLabels <- getAnnotationLocal()
     if (is.null(relevantLabels)) return(NULL)
     
     relevantLabels$Chromosome <- factor(relevantLabels$Chromosome,
@@ -159,7 +220,7 @@ function(input, output) {
     betas <- getBetas()
     if (is.null(betas)) return()
     
-    relevantLabels <- getAnnotation()
+    relevantLabels <- getAnnotationLocal()
     if (is.null(relevantLabels)) return(NULL)
 
     relevantLabels$Island <- factor(relevantLabels$Island,
@@ -194,10 +255,10 @@ function(input, output) {
         updateTextInput(inputId = "probeId", value = firstProbe)
       # } else {
         shinyjs::enable("runMultiProbe")
-        shinyjs::enable("rangeStart")
-        shinyjs::enable("rangeEnd")
-        updateNumericInput(inputId = "rangeStart", value = 1)
-        updateNumericInput(inputId = "rangeEnd", value = numProbes)
+        # shinyjs::enable("rangeStart")
+        # shinyjs::enable("rangeEnd")
+        # updateNumericInput(inputId = "rangeStart", value = 1)
+        # updateNumericInput(inputId = "rangeEnd", value = numProbes)
       #}
     }
   })
@@ -352,6 +413,33 @@ function(input, output) {
     getProbeVisualAdHoc()  # Return the plotly object
   })
   
+  # Reactive expression that responds to file upload
+  getUploadedPeakSummary <- reactive({
+    req(input$peakSummaryFile$datapath) # Ensure the file is uploaded
+    peakSummary <- data.table::fread(input$peakSummaryFile$datapath)
+    peakSummary <- peakSummary[order(peakSummary$probeName),]
+    reset("runMultiProbe")
+    
+    # Users need to restart the app if they want to run a new analysis after uploading past results
+    shinyjs::disable("runMultiProbe")
+    shinyjs::disable("region")
+    
+    peakSummary
+  })
+  
+  # Object that gets peakSummary from either upload or run-button
+  selectedPeakSummary <- reactive({
+    if (input$runMultiProbe == 0 && is.null(input$peakSummaryFile$datapath)) {
+      return(NULL)  # Neither triggered initially
+    }
+    
+    if (input$runMultiProbe > 0) {
+      return(getMultiProbeSummary())
+    } else {
+      return(getUploadedPeakSummary())
+    }
+  })
+  
   ##### Beta matrix-level analysis #####
   getMultiProbeSummary <- eventReactive(input$runMultiProbe, {
     betas <- getBetas()
@@ -414,18 +502,18 @@ function(input, output) {
     shinyjs::enable("downloadPeakSummary")
   }) 
   
-  output$peakCountBar <- renderPlotly({
-    req(input$runMultiProbe)
-    peakSummary <- getMultiProbeSummary()
-    if (is.null(peakSummary)) return()
-
-    peakCounts <- data.frame(Peaks = peakSummary$numPeaks)
-
-    p <- ggplot(peakCounts, aes(x = Peaks)) +
-      geom_bar() +
-      labs(title = "Number of Peaks Detected Per Probe", x = "Peaks", y = "Count")
-    ggplotly(p)
-  })
+  # output$peakCountBar <- renderPlotly({
+  #   req(input$runMultiProbe)
+  #   peakSummary <- getMultiProbeSummary()
+  #   if (is.null(peakSummary)) return()
+  # 
+  #   peakCounts <- data.frame(Peaks = peakSummary$numPeaks)
+  # 
+  #   p <- ggplot(peakCounts, aes(x = Peaks)) +
+  #     geom_bar() +
+  #     labs(title = "Number of Peaks Detected Per Probe", x = "Peaks", y = "Count")
+  #   ggplotly(p)
+  # })
   
   # Will set to TRUE when probe-average plot on "get started" page is created
   tableCreatedResultSummary <- reactiveVal(FALSE)
@@ -438,8 +526,9 @@ function(input, output) {
   outputOptions(output, "tableCreatedResultSummary", suspendWhenHidden = FALSE)
   
   output$modalityTable <- renderTable(align = 'l', {
-    req(input$runMultiProbe)
-    peakSummary <- getMultiProbeSummary()
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+ 
     if (is.null(peakSummary)) return()
     
     counts <- peakSummary[, .N, by = numPeaks]
@@ -454,30 +543,24 @@ function(input, output) {
   })
   
   output$flaggedProbesTableCounts <- renderTable(align = 'l', {
-    req(input$runMultiProbe)
-    peakSummary <- getMultiProbeSummary()
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+
     if (is.null(peakSummary)) return()
     
-    # varianceString = paste0(sum(peakSummary$lowVariance, na.rm = TRUE), 
-    #                         " (", 
-    #                         round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
-    #                         "%)")
-    # hypoMethString = paste0(sum(peakSummary$hypoMethylated),
-    #                         " (",
-    #                         round(mean(peakSummary$hypoMethylated), 2) * 100,
-    #                         "%)")
-    # hyperMethString = paste0(sum(peakSummary$hyperMethylated),
-    #                          " (",
-    #                          round(mean(peakSummary$hyperMethylated), 2) * 100,
-    #                          "%)")
+    varianceString = paste0(sum(peakSummary$lowVariance, na.rm = TRUE),
+                            " (",
+                            round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
+                            "%)")
+    hypoMethString = paste0(sum(peakSummary$hypoMethylated),
+                            " (",
+                            round(mean(peakSummary$hypoMethylated), 2) * 100,
+                            "%)")
+    hyperMethString = paste0(sum(peakSummary$hyperMethylated),
+                             " (",
+                             round(mean(peakSummary$hyperMethylated), 2) * 100,
+                             "%)")
     
-    # When processing entire arrays, counts get pretty large
-    varianceString = paste0(round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
-                            "%")
-    hypoMethString = paste0(round(mean(peakSummary$hypoMethylated), 2) * 100,
-                            "%")
-    hyperMethString = paste0(round(mean(peakSummary$hyperMethylated), 2) * 100,
-                             "%")
     
     results <- data.frame("Low Variance" = varianceString,
                "Hypomethylated" = hypoMethString,
@@ -489,8 +572,9 @@ function(input, output) {
   })
   
   output$flaggedProbesTableCounts2 <- renderTable(align = 'l', {
-    req(input$runMultiProbe)
-    peakSummary <- getMultiProbeSummary()
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+
     if (is.null(peakSummary)) return()
     
     nearCutoffPropSampleString = paste0(round(mean(peakSummary$nearCutoffPropSample, na.rm = TRUE), 2) * 100, "%")
@@ -503,50 +587,52 @@ function(input, output) {
     results
   })
   
-  output$flaggedProbesTablePercents <- renderTable(align = 'l', {
-    req(input$runMultiProbe)
-    peakSummary <- getMultiProbeSummary()
-    if (is.null(peakSummary)) return()
-    
-    data.frame("Low-Variance(%)" = mean(peakSummary$lowVariance, na.rm = TRUE),
-               "Hypomethylated(%)" = mean(peakSummary$hypoMethylated),
-               "Hypermethylated (%)" = mean(peakSummary$hyperMethylated))
-  })
-  
-  output$peakSummaryPreview <- renderPlot({
-    peakSummary <- getMultiProbeSummary()
-    if (is.null(peakSummary)) return()
-    
-    betas <- getBetas()
-    if (is.null(betas)) return()
-    
-    whichProbes <- sample(1:nrow(peakSummary), 9)
-    par(mfrow = c(3,3))
-    for (i in 1:9) {
-      peakSummaryPlot(beta.data = betas[whichProbes[i],,drop = FALSE], 
-                      peak.summary = peakSummary[whichProbes[i],])
-    }
-    
-  })
+  # output$peakSummaryPreview <- renderPlot({
+  #   peakSummary <- selectedPeakSummary()
+  # 
+  #   if (is.null(peakSummary)) return()
+  #   
+  #   betas <- getBetas()
+  #   if (is.null(betas)) return()
+  #   
+  #   whichProbes <- sample(1:nrow(peakSummary), 9)
+  #   par(mfrow = c(3,3))
+  #   for (i in 1:9) {
+  #     peakSummaryPlot(beta.data = betas[whichProbes[i],,drop = FALSE], 
+  #                     peak.summary = peakSummary[whichProbes[i],])
+  #   }
+  #   
+  # })
 
   output$peakSummaryTable <- DT::renderDataTable({
-    peakSummary <- getMultiProbeSummary()
+    peakSummary <- selectedPeakSummary()
     if (is.null(peakSummary)) return()
     
     listToString <- function(listData, decimalPlaces) {
       paste(as.character(round(unlist(listData), decimalPlaces)), collapse = ", ")
     }
 
-    peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations, 
-                                                  FUN = listToString,
-                                                  decimalPlaces = 2))
-    proportionSamplePreviewFriendly <- unlist(lapply(peakSummary$proportionSample, 
-                                                     FUN = listToString,
-                                                     decimalPlaces = 3))
-    peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance, 
-                                                 FUN = listToString,
-                                                 decimalPlaces = 6))
-    datatable(data.frame("probeName" = peakSummary$probeName,
+    if (is.list(peakSummary$peakLocations)) {
+
+      peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations, 
+                                                    FUN = listToString,
+                                                    decimalPlaces = 2))
+      proportionSamplePreviewFriendly <- unlist(lapply(peakSummary$proportionSample, 
+                                                       FUN = listToString,
+                                                       decimalPlaces = 3))
+      peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance, 
+                                                   FUN = listToString,
+                                                   decimalPlaces = 6))
+    } else {
+
+      peakLocationsPreviewFriendly <- strsplit(peakSummary$peakLocations, split = "[|]")
+      
+      proportionSamplePreviewFriendly <- strsplit(peakSummary$proportionSample, split = "[|]")
+      
+      peakVariancePreviewFriendly <- strsplit(peakSummary$peakVariance, split = "[|]")
+    }
+    
+    datatable(data.table("probeName" = peakSummary$probeName,
                          "numPeaks" = as.factor(peakSummary$numPeaks),
                          "meanBeta" = round(peakSummary$meanBeta, 2),
                          "peakLocations" = peakLocationsPreviewFriendly,
@@ -574,7 +660,6 @@ function(input, output) {
       showMinima = input$showMinimaMultiProbe
     )
   })
-  #### TODO ####
   
   getProbeVisualFromPeakSummary <- eventReactive(multiProbeParams(), {
 
@@ -583,12 +668,16 @@ function(input, output) {
     
     betaFilter <- betaFilter()
     
-    peakSummary <- getMultiProbeSummary()
+    peakSummary <- selectedPeakSummary()
+
+   # peakSummary <- getMultiProbeSummary()
     
     if (is.null(peakSummary)) return()
     
-    req(getMultiProbeSummary())
+    req(selectedPeakSummary())
+    # req(getMultiProbeSummary())
     
+    # Here is where multiProbeParams() fails to update when peakSummary is created via file upload
     req(multiProbeParams()$selectedRow)  # Ensures that the reactive expression has a value
     
     beta.data <- betas[betaFilter,][multiProbeParams()$selectedRow, , drop = FALSE]
@@ -602,11 +691,18 @@ function(input, output) {
 
     fittedDensity <- density(beta.data, from = 0, to = 1, n = numBreaks, 
                              adjust = densityAdjust, bw = bandwidth)
-    
-    detectedPeaks <- unlist(peak.summary$peakLocations)
 
-    detectedMins <- c(unlist(peak.summary$leftMin), 
-                      unlist(peak.summary$rightMin)[peak.summary$numPeaks])
+    if (is.list(peakSummary$peakLocations)) {
+      detectedPeaks <- unlist(peak.summary$peakLocations)
+  
+      detectedMins <- c(unlist(peak.summary$leftMin), 
+                        unlist(peak.summary$rightMin)[peak.summary$numPeaks])
+    } else {
+      detectedPeaks <- as.numeric(unlist(strsplit(peak.summary$peakLocations, split = "[|]")))
+      
+      detectedMins <- as.numeric(c(unlist(strsplit(peak.summary$leftMin, split = "[|]")),
+                        unlist(strsplit(peak.summary$rightMin, split = "[|]")[peak.summary$numPeaks])))
+    }
     
     # Place the detected peaks and minima on the fitted line
     fittedPeaks <- numeric(length(detectedPeaks))
@@ -685,7 +781,7 @@ function(input, output) {
   
   # Create a list of the unique chromosomes represented in data
   uniqueChromosomes <- reactive({
-    annotationData <- getAnnotation()
+    annotationData <- getAnnotationLocal()
     if (is.null(annotationData)) return(NULL)
     
     allChromosomes <- c(as.character(1:22), "X", "Y")
@@ -721,7 +817,7 @@ function(input, output) {
   
   # Get minimum and maximum base pair locations from data
   basePairMinMax <- eventReactive(selectedRegion()$chromosomeToSubset, {
-    annotationData <- getAnnotation()
+    annotationData <- getAnnotationLocal()
     if (is.null(annotationData)) return(NULL)
     
     list("bpMin" = min(annotationData$Position[annotationData$Chromosome == selectedRegion()$chromosomeToSubset]), 
@@ -743,7 +839,8 @@ function(input, output) {
       region = input$region,
       chromosomeWhole = input$selectedChromosomeWhole,
       chromosomeToSubset = input$selectedChromosomePartial,
-      annotation = input$arrayType
+      annotation = input$arrayType,
+      existingFile = input$peakSummaryFile$datapath
     )
   })
   
@@ -752,7 +849,12 @@ function(input, output) {
     betas <- getBetas()
     if (is.null(betas)) return(NULL)
 
-    annotationData <- getAnnotation()
+    if (!is.null(selectedRegion()$existingFile)) {
+      peakSummaryProbes <- selectedPeakSummary()$probeName
+      return(rownames(betas) %in% peakSummaryProbes)
+    }
+    
+    annotationData <- getAnnotationLocal()
     
     if (is.null(annotationData)) return(rep(TRUE, nrow(betas)))
     
@@ -776,7 +878,7 @@ function(input, output) {
     if (is.null(betas)) return("")
     betaFilter <- betaFilter()
 
-    annotationData <- getAnnotation()
+    annotationData <- getAnnotationLocal()
     if (is.null(annotationData)) simpleError("Annotation package required.")
 
     nProbe <- sum(betaFilter)

@@ -11,32 +11,31 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv", br(), br(),
                                  "Max file size: 100 GB or local memory limit, 
                                  whichever is smaller"),
-                        conditionalPanel(
-                          condition = "output.missing450kAnnotation ||
-                          output.missingEPICAnnotation ||
-                          output.missingEPICV2Annotation",
-                          h5("The following array annotation R packages are not 
-                             installed:"),
-                          conditionalPanel(
-                            condition = "output.missing450kAnnotation",
-                            h5("450k")
-                          ),
-                          conditionalPanel(
-                            condition = "output.missingEPICAnnotation",
-                            h5("EPIC")
-                          ),
-                          conditionalPanel(
-                            condition = "output.missingEPICV2Annotation",
-                            h5("EPIC V2")
-                          ),
-                          h5("Selecting a missing package below will 
-                             begin installing it, which can take a long time.")
-                        ),
+                        # conditionalPanel(
+                        #   condition = "output.missing450kAnnotation ||
+                        #   output.missingEPICAnnotation ||
+                        #   output.missingEPICV2Annotation",
+                        #   h5("The following array annotation R packages are not 
+                        #      installed:"),
+                        #   conditionalPanel(
+                        #     condition = "output.missing450kAnnotation",
+                        #     h5("450k")
+                        #   ),
+                        #   conditionalPanel(
+                        #     condition = "output.missingEPICAnnotation",
+                        #     h5("EPIC")
+                        #   ),
+                        #   conditionalPanel(
+                        #     condition = "output.missingEPICV2Annotation",
+                        #     h5("EPIC V2")
+                        #   ),
+                        #   h5("Selecting a missing package below will 
+                        #      begin installing it, which can take a long time.")
+                        # ),
                         radioButtons("arrayType", "Array type (Optional)",
                                      selected = character(0),
                                      c("450k" = "il450k",
-                                       "EPIC v1.0" = "ilepic1",
-                                       "EPIC v2.0" = "ilepic2")),
+                                       "EPIC v1.0" = "ilepic1")),
                         helpText("Loads array-specific annotations (e.g. chromosome, 
                                  base pair, etc.. Required for running MethylModes on 
                                  a subset of data.)")
@@ -68,6 +67,13 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           "Select Analysis Type:",
                           choices = c("Individual Probe" = "individual", 
                                       "Multiple Probe" = "multiProbe")
+                        ),
+                        conditionalPanel(
+                          condition = "input.analysisType == 'multiProbe'",
+                        fileInput("peakSummaryFile", "Optional: Upload Existing MethylModes Result File",
+                                  multiple = FALSE,
+                                  accept = c(".RDS",
+                                             ".csv"))
                         ),
                         h4("Peak Detection Thresholds"),
                         numericInput(label = "ProportionSample",
@@ -109,6 +115,23 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         #### Multi-probe options ####
                         conditionalPanel(
                           condition = "input.analysisType == 'multiProbe'",
+                          h4("Optional Thresholds"),
+                          helpText("Label low-variance, hypomethylated, and hypermethylated CpG sites"),
+                          numericInput(inputId = "varianceThreshold",
+                                       label = "Variance",
+                                       value = 1e-5,
+                                       min = 0,
+                                       max = 1),
+                          numericInput(inputId = "hypoThreshold",
+                                       label = "Hypomethylation",
+                                       value = 0.3,
+                                       min = 0,
+                                       max = 0.5),
+                          numericInput(input = "hyperThreshold",
+                                       label = "Hypermethylation",
+                                       value = 0.7,
+                                       min = 0.5,
+                                       max = 1),
                           radioButtons("region", "Select region", 
                                        choices = c("Whole genome" = "wholeGenome",
                                                    "Chromosome*" = "chromosome",
@@ -128,23 +151,6 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                             textOutput(outputId = "subsetDataDimensions"),
                           ),
                           helpText("*Requires that annotations for the array type are loaded (select on 'Get Started') page."),
-                          h4("Optional Thresholds"),
-                          helpText("Label low-variance, hypomethylated, and hypermethylated CpG sites"),
-                          numericInput(inputId = "varianceThreshold",
-                                       label = "Variance",
-                                       value = 1e-5,
-                                       min = 0,
-                                       max = 1),
-                          numericInput(inputId = "hypoThreshold",
-                                       label = "Hypomethylation",
-                                       value = 0.3,
-                                       min = 0,
-                                       max = 0.5),
-                          numericInput(input = "hyperThreshold",
-                                       label = "Hypermethylation",
-                                       value = 0.7,
-                                       min = 0.5,
-                                       max = 1),
                           actionButton("runMultiProbe", "Run multiple-probe analysis", disabled = TRUE)
                         )
                       ), # sidebarPanel
@@ -177,7 +183,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                                            "Download results")),
                           conditionalPanel(
                             condition = "output.tableCreatedResultSummary",
-                            h4("Summary")
+                            uiOutput(outputId = "numProbesAnalyzed")
                           ),
                           tableOutput("modalityTable"),
                           tableOutput("flaggedProbesTableCounts"),
@@ -200,10 +206,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
              tabPanel("Review and Analyze Results",
                       h3("Upload Previously Calculated Results"),
                       sidebarPanel(
-                        fileInput("peakSummaryFile", "Choose MethylModes Result File",
-                                  multiple = FALSE,
-                                  accept = c(".RDS",
-                                             ".csv"))
+                        
                       )
               )
    )
