@@ -18,6 +18,8 @@ function(input, output) {
       betas <-as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
     } else if (fileType %in% c("RDA", "rda")) {
       betas <- load(file = input$betaFile$datapath)
+    } else if (fileType == "qs") {
+      betas <- qread(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
     }
@@ -172,19 +174,22 @@ function(input, output) {
   output$betaOverview <- renderPlotly({
     betas <- getBetas()
     if (is.null(betas)) return()
-
+    
     probeMeans <- data.frame("Beta" = round(rowMeans(betas), 2))
+    
     p <- ggplot(probeMeans, aes(Beta)) +
-      geom_histogram(aes(y = after_stat(density)), 
-                     binwidth = 1 / input$numHistogramBinsBetaOverview) +
-      geom_line(aes(y = after_stat(density), ), stat = 'density') +
+      geom_histogram(aes(y = after_stat(density), fill = after_stat(x)), # Use x (Beta) to map to fill
+                     binwidth = 1 / input$numHistogramBinsBetaOverview, 
+                     color = "black") + # Add a border color for clarity
+      geom_line(aes(y = after_stat(density)), stat = 'density', color = "black") + # Add density line
       labs(title = "Mean Methylation Across Probes",
            x = "Beta",
            y = "Density") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
-            axis.line = element_line(colour = "black"))
+            axis.line = element_line(colour = "black")) +
+      scale_fill_viridis_c() # Apply viridis color scale
     
     # Enables display of slider bar
     plotCreatedBetaOverview(TRUE)
@@ -207,7 +212,7 @@ function(input, output) {
                                         levels = c(as.character(1:22), "X", "Y"))
     
     p <- ggplot(relevantLabels, aes(x = Chromosome)) +
-      geom_bar() +
+      geom_bar(color = "#155087", fill = "#007996") +  # Set the bar fill color to cerulean
       labs(title = "Probe Locations by Chromosome", x = "Chromosome", y = "Count") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
@@ -222,31 +227,38 @@ function(input, output) {
     
     relevantLabels <- getAnnotationLocal()
     if (is.null(relevantLabels)) return(NULL)
-
+   
     relevantLabels$Island <- factor(relevantLabels$Island,
                                     levels = c("N_Shelf", "N_Shore", "Island",
                                                "S_Shore", "S_Shelf", "OpenSea"))
+
+    islandColors <- c("Island" ="#FDE333"  ,       
+                      "N_Shore" = "#C1DE35",      
+                      "S_Shore" = "#00C376",      
+                      "N_Shelf" = "#008498",      # Blue
+                      "S_Shelf" = "#006892",      # Blue
+                      "OpenSea" = "#363D7C")      # Dark Blue (or the closest that matches)
     
-    p <- ggplot(relevantLabels, aes(x = Island)) +
-      geom_bar() +
+    p <- ggplot(relevantLabels, aes(x = Island, fill = Island)) +
+      geom_bar(color = "black") +  # Add black border to the bars
+      scale_fill_manual(values = islandColors) +  # Assign the custom colors
       labs(title = "CpG Island Coverage", x = "", y = "Count") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
             axis.line = element_line(colour = "black"))
+    
     ggplotly(p)
   })
   
   observeEvent(input$betaFile, {
-    if (!is.null(input$betaFile$datapath) & 
-        file_ext(input$betaFile$datapath) %in% 
-        c("RDS", "rds", "csv", "TXT", "txt", "tsv", "RDA", "rda")) {
+    if (!is.null(input$betaFile$datapath)) {
       
       # Probe analysis inputs
       betas <- getBetas()
       numProbes <- nrow(betas)
       firstProbe <- rownames(betas)[1]
-      
+
       # Remove disabling from buttons if the appropriate analysis type is selected
       # if (input$analysisType == "individual") {
         shinyjs::enable("runProbe")
@@ -261,6 +273,23 @@ function(input, output) {
         # updateNumericInput(inputId = "rangeEnd", value = numProbes)
       #}
     }
+  })
+  
+  # Disable the Analysis Type radio buttons on startup
+  shinyjs::disable("analysisType")
+  
+  # Enable the radio buttons upon file upload
+  observeEvent(input$betaFile, {
+    shinyjs::enable("analysisType")
+  })
+  
+  # Disable results cross-tabulation until results are available
+  shinyjs::disable("crossTabMultimodal")
+  shinyjs::disable("crossTabCpgIsland")
+  
+  observeEvent(c(input$peakSummaryFile, input$runMultiProbe), {
+    shinyjs::enable("crossTabMultimodal")
+    shinyjs::enable("crossTabCpgIsland")
   })
   
   ##### Probe-level analysis #####
@@ -571,21 +600,21 @@ function(input, output) {
     results
   })
   
-  output$flaggedProbesTableCounts2 <- renderTable(align = 'l', {
-    req(selectedPeakSummary())
-    peakSummary <- selectedPeakSummary()
-
-    if (is.null(peakSummary)) return()
-    
-    nearCutoffPropSampleString = paste0(round(mean(peakSummary$nearCutoffPropSample, na.rm = TRUE), 2) * 100, "%")
-    nearCutoffPeakDistanceString = paste0(round(mean(peakSummary$nearCutoffPeakDistance, na.rm = TRUE), 2) * 100, "%")
-    
-    results <- data.frame("Near proportionSample Threshold" = nearCutoffPropSampleString,
-                          "Near peakDistance Threshold" = nearCutoffPeakDistanceString)
-    colnames(results) <- c("Near proportionSample Threshold", "Near peakDistance Threshold")
-    
-    results
-  })
+  # output$flaggedProbesTableCounts2 <- renderTable(align = 'l', {
+  #   req(selectedPeakSummary())
+  #   peakSummary <- selectedPeakSummary()
+  # 
+  #   if (is.null(peakSummary)) return()
+  #   
+  #   nearCutoffPropSampleString = paste0(round(mean(peakSummary$nearCutoffPropSample, na.rm = TRUE), 2) * 100, "%")
+  #   nearCutoffPeakDistanceString = paste0(round(mean(peakSummary$nearCutoffPeakDistance, na.rm = TRUE), 2) * 100, "%")
+  #   
+  #   results <- data.frame("Near proportionSample Threshold" = nearCutoffPropSampleString,
+  #                         "Near peakDistance Threshold" = nearCutoffPeakDistanceString)
+  #   colnames(results) <- c("Near proportionSample Threshold", "Near peakDistance Threshold")
+  #   
+  #   results
+  # })
   
   # output$peakSummaryPreview <- renderPlot({
   #   peakSummary <- selectedPeakSummary()
@@ -883,5 +912,62 @@ function(input, output) {
 
     nProbe <- sum(betaFilter)
     paste(nProbe, "probes selected.")
+  })
+  
+  # Cross-tabulate for multimodal tables (SNP under probe)
+  output$tableMultimodalSNP <- DT::renderDataTable({
+    req(selectedPeakSummary())
+    req(getAnnotationLocal())
+    peakSummary <- selectedPeakSummary()
+    annotationData <- getAnnotationLocal()
+
+    peakCounts <- sort(unique(peakSummary$numPeaks))
+    
+    # Apply betaFilter to ensure matching data lengths
+    filter <- betaFilter()
+    annotationData <- annotationData[filter,]
+
+    if (input$arrayType == "il450k") {
+      snpClose <- numeric(length(peakCounts))
+      snpFar <- numeric(length(peakCounts))
+      
+      for (i in seq_along(peakCounts)) {
+        snpClose[i] <- sum(peakSummary$numPeaks == peakCounts[i] 
+                           & annotationData$SNP_within_10Bp != "")
+        snpFar[i] <- sum(peakSummary$numPeaks == peakCounts[i] 
+                         & annotationData$SNP_10Bp_and_beyond != "")
+      }
+
+      return(DT::datatable(data.frame(`Number of Modes` = peakCounts,
+                                      `SNP within 10 bp` = snpClose,
+                                      `SNP in 10-50 bp` = snpFar),
+                           rownames = FALSE))
+      
+    } else if (input$arrayType == "ilepic1") {
+      annotationData <- annotationData %>%
+        mutate(SNP_distance_bin = cut(SNP_distance, breaks = c(0, 1, 10, 50), labels = c("1", "2-10", "11-50")))
+      
+      subset <- which(!is.na(annotationData$SNP_distance_bin))
+      dataSubset <- peakSummary[subset, ]
+      
+      crossTab <- table(
+        `Number of Modes Detected` = dataSubset$numPeaks,
+        `SNP Distance Bin` = annotationData$SNP_distance_bin[subset]
+      )
+    }
+    
+    DT::datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
+  })
+  
+  # Cross-tabulate for multimodal tables (Relation to CpG island)
+  output$tableMultimodalCpG <- DT::renderDataTable({
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+    req(getAnnotationLocal())
+    annotationData <- getAnnotationLocal()
+    annotationData <- annotationData[betaFilter(),]
+    
+    crossTab <- table("Number of Modes Detected" = peakSummary$numPeaks, annotationData$Island)
+    DT::datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
   })
 }

@@ -2,6 +2,7 @@
 library(data.table)
 library(dplyr)
 library(tools) # file_ext()
+library(qs) # qread()
 
 # Shiny-specific
 library(shiny)

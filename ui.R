@@ -7,7 +7,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                       sidebarPanel(
                         fileInput("betaFile", "Upload file containing beta values",
                                   multiple = FALSE,
-                                  accept = c(".txt", ".csv", ".RDS", ".RDA")), 
+                                  accept = c(".txt", ".csv", ".RDS", ".RDA", ".qs")), 
                         helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv", br(), br(),
                                  "Max file size: 100 GB or local memory limit, 
                                  whichever is smaller"),
@@ -64,7 +64,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                       sidebarPanel(
                         radioButtons(
                           "analysisType",
-                          "Select Analysis Type:",
+                          "Select analysis type",
                           choices = c("Individual Probe" = "individual", 
                                       "Multiple Probe" = "multiProbe")
                         ),
@@ -203,12 +203,46 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         )
                         )
                       ), 
-             tabPanel("Review and Analyze Results",
-                      h3("Upload Previously Calculated Results"),
+             tabPanel("Cross-Tabulate Results",
                       sidebarPanel(
-                        
+                        h4("Select cross-tabulation variables"),
+                        selectInput(inputId = "crossTabMultimodal",
+                                    label = "Tabulate by multimodality",
+                                    choices = c("SNP under probe",
+                                                "Relation to CpG island"),
+                                    multiple = TRUE,
+                                    selected = NULL),
+                        selectInput(inputId = "crossTabCpgIsland",
+                                    label = "Tabulate by hyper/hypomethylation",
+                                    choices = c("SNP under probe",
+                                                "Relation to CpG island"),
+                                    multiple = TRUE,
+                                    selected = NULL)
+                      ),
+                      mainPanel(
+                        conditionalPanel(
+                          condition = "input.crossTabMultimodal.includes('SNP under probe')",
+                          h4("Multimodal: SNP under probe"),
+                          DT::dataTableOutput("tableMultimodalSNP")
+                        ),
+                        conditionalPanel(
+                          condition = "input.crossTabMultimodal.includes('Relation to CpG island')",
+                          h4("Multimodal: Relation to CpG island"),
+                          DT::dataTableOutput("tableMultimodalCpG")
+                        ),
+                        conditionalPanel(
+                          condition = "input.crossTabCpgIsland.includes('SNP under probe')",
+                          h4("CpG Island: SNP under probe"),
+                          DT::dataTableOutput("tableCpgIslandSNP")
+                        ),
+                        conditionalPanel(
+                          condition = "input.crossTabCpgIsland.includes('Relation to CpG island')",
+                          h4("CpG Island: Relation to CpG island"),
+                          DT::dataTableOutput("tableCpgIslandCpG")
+                        )
                       )
-              )
+                  )
+              
    )
   
 )
