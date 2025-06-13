@@ -1,6 +1,6 @@
 ##### Standard thresholding parameters #####
 # Minimum percent of the sample a peak represents
-proportionSample = 0.05
+proportionSample = 0.01
 # Minimum space between peaks on the x axis
 peakDistance = 0.10
 
