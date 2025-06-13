@@ -2,7 +2,7 @@
 library(data.table)
 library(dplyr)
 library(tools) # file_ext()
-library(qs) # qread()
+# library(qs) # qread()
 
 # Shiny-specific
 library(shiny)
@@ -40,7 +40,7 @@ source(file = "standardParams.R", local = T)
 source(file = "localMinMax.R", local = T)
 source(file = "methylModes.R", local = T)
 # source(file = "fillPeakSummaryParallelCloseToThreshold.R", local = T)
-source(file = "fillPeakSummaryParallelProgressr.R", local = T)
+source(file = "fillPeakSummaryParallel.R", local = T)
 # source("/home/lutiffan/peakDetectionScripts/fillPeakSummaryParallel.R")
 source(file = "visualizeBetaPeaks.R", local = T)
 

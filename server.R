@@ -252,7 +252,9 @@ function(input, output) {
   })
   
   observeEvent(input$betaFile, {
-    if (!is.null(input$betaFile$datapath)) {
+    if (!is.null(input$betaFile$datapath) & 
+        file_ext(input$betaFile$datapath) %in% 
+        c("RDS", "rds", "csv", "TXT", "txt", "tsv", "RDA", "rda")) {
       
       # Probe analysis inputs
       betas <- getBetas()

@@ -7,8 +7,8 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                       sidebarPanel(
                         fileInput("betaFile", "Upload file containing beta values",
                                   multiple = FALSE,
-                                  accept = c(".txt", ".csv", ".RDS", ".RDA", ".qs")), 
-                        helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv", br(), br(),
+                                  accept = c(".txt", ".csv", ".RDS", ".RDA", ".tsv", ".qs")), 
+                        helpText("Accepted file formats: .RDS, .RDA, .csv, .txt (tab-delimited), .tsv, .qs", br(), br(),
                                  "Max file size: 100 GB or local memory limit, 
                                  whichever is smaller"),
                         # conditionalPanel(
@@ -35,7 +35,10 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         radioButtons("arrayType", "Array type (Optional)",
                                      selected = character(0),
                                      c("450k" = "il450k",
-                                       "EPIC v1.0" = "ilepic1")),
+                                       
+                                       "EPIC v1.0 (GRCh37)" = "ilepic1",
+                                       
+                                       "EPIC v2.0 (GRCh38)" = "ilepic2")),
                         helpText("Loads array-specific annotations (e.g. chromosome, 
                                  base pair, etc.. Required for running MethylModes on 
                                  a subset of data.)")
@@ -64,7 +67,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                       sidebarPanel(
                         radioButtons(
                           "analysisType",
-                          "Select analysis type",
+                          "Select Analysis Type",
                           choices = c("Individual Probe" = "individual", 
                                       "Multiple Probe" = "multiProbe")
                         ),
