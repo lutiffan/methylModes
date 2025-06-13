@@ -1,0 +1,68 @@
+---
+title: "Run MethylModes Directly"
+output: html_document
+date: "2024-12-24"
+---
+
+```{r setup, include=FALSE}
+# Set the working directory to the folder where MethylModes source code is located
+source("localMinMax.R")
+source("methylModes.R")
+source("fillPeakSummaryParallel.R")
+source("visualizeBetaPeaks.R")
+
+library(foreach)
+library(iterators)
+library(parallelly)
+library(doParallel)
+library(ggplot2)
+library(data.table)
+# library(qs) may or may not be needed depending on your data format
+```
+Set hyperparameters
+```{r}
+# Option 1: load default parameters
+  source("standardParams.R")
+
+# Option 2: set parameters manually
+  ## Thresholding parameters ##
+  # Minimum percent of the sample a peak represents
+  proportionSample = 0.05
+  # Minimum space between peaks on the x axis
+  peakDistance = 0.10
+
+  ## Advanced parameters for smoothing ##
+  bwOptions <- c(NA, "sheatherJones")
+  kernelType = "gaussian" # "This must partially match one of "gaussian", "rectangular", "triangular", "epanechnikov", "biweight", "cosine" or "optcosine", with default "gaussian", and may be abbreviated to a unique prefix (single letter)."
+  bandwidthType = bwOptions[1] # options: NA, "sheatherJones"
+  numBreaks = 500 # The "n" parameter for density(): "the number of equally spaced points at which the density is to be estimated..." You need at least 500 for a decent smooth curve
+  densityAdjust = 1.5
+  pushToZero = 1e-6 # Get rid of minuscule floating point numbers  created by density() that really should be zero
+```
+Load your data and set output file names
+```{r}
+# Set output file name, e.g.
+# resultFileName <- paste0("methylModes_", availableCores(), "_core_", Sys.Date(), "_EPICv1_Results.RDS")
+resultFileName <- 
+
+# Load your beta matrix, e.g.
+# betas <- readRDS("/home/data/methylationBetas.RDS")
+betaMatrix <- 
+```
+Run methylModes algorithm and print runtime information to a text file. 
+You should run the whole code chunk at once rather than executing individual lines of code.
+```{r}
+sink("methylModesRuntimes.txt", append = T)
+start <- Sys.time()
+peakSummary <- fillPeakSummaryParallel(betas = betaMatrix)
+print(paste("MethylModes run with", availableCores() - 1, "cores")) # 1 core is withheld to keep R session running
+Sys.time() - start
+sink()
+saveRDS(peakSummary, file = resultFileName)
+
+# Plot results
+peakCounts <- data.frame(Peaks = peakSummary$numPeaks)
+ggplot(peakCounts, aes(x = Peaks)) +
+  geom_bar() +
+  labs(title = "Barplot of Peak Counts per Probe", x = "Number of peaks detected", y = "Count")
+```
