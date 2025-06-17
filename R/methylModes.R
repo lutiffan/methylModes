@@ -229,16 +229,16 @@ methylModes <- function(row.data = NULL,
   # }
   #seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
   
-  # Step 5: check if any detected minima are close to zero, constituting a "gap"
-  mins <- unique(c(detected$leftMinIdx, detected$rightMinIdx))
-  if (nrow(detected) > 1) {
-    gap <- sum(probeDensityEst$y[mins[2:(length(mins) - 1)]] < pushToZero) > 0
-  } else {
-    gap <- NA
-  }
+  # # Step 5: check if any detected minima are close to zero, constituting a "gap"
+  # mins <- unique(c(detected$leftMinIdx, detected$rightMinIdx))
+  # if (nrow(detected) > 1) {
+  #   gap <- sum(probeDensityEst$y[mins[2:(length(mins) - 1)]] < pushToZero) > 0
+  # } else {
+  #   gap <- NA
+  # }
   
   
-  list("detected" = detected, "probeDensityEst" = probeDensityEst, "gap" = gap,
+  list("detected" = detected, "probeDensityEst" = probeDensityEst,
        "nearCutoffPropSample" = nearCutoffPropSample,
        "nearCutoffPeakDistance" = nearCutoffPeakDistance)
 }

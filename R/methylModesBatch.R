@@ -80,19 +80,14 @@ methylModesBatch <- function(betas = NULL,
 
   if (is.null(betas)) stop(simpleError("Invalid beta matrix."))
   
-  template <- data.table("probeName" = character(1),
-                         "numPeaks" = numeric(1),
-                         "meanBeta" = numeric(1),
-                         "peakLocations" = vector(mode = "list", 
-                                                  length = 1),
-                         "leftMin" = vector(mode = "list", 
-                                            length = 1),
-                         "rightMin" = vector(mode = "list", 
-                                             length = 1),
-                         "proportionSample" = vector(mode = "list", 
-                                                     length = 1),
-                         "peakVariance" = vector(mode = "list", 
-                                                 length = 1))
+  # template <- data.table("probeName" = character(1),
+  #                        "numPeaks" = numeric(1),
+  #                        "meanBeta" = numeric(1),
+  #                        "peakLocations" = vector(mode = "list"),
+  #                        "leftMin" = vector(mode = "list"),
+  #                        "rightMin" = vector(mode = "list"),
+  #                        "proportionSample" = vector(mode = "list"),
+  #                        "peakVariance" = vector(mode = "list"))
   
   # Make new cluster
   cl <- parallelly::makeClusterPSOCK(availableCores(omit = 1), autoStop = TRUE)
@@ -106,7 +101,10 @@ methylModesBatch <- function(betas = NULL,
   peakSummary <- foreach::foreach(probe = iter(betas, by = "row"), 
                                   .combine = "rbind",
                                   .packages = c("foreach", "data.table", "methylModes")) %dopar% {
-    
+# # Testing  
+# probe = iter(betas, by = "row")
+# probe = probe$state$obj[2,,drop = F]
+                                    
     # Steps 1-4: smooth histogram, detect local maxima/minima, filter by 
     # spacing, filter by sample %, detect presence of any "gaps"
     foundPeaks <- methylModes(row.data = probe,
@@ -132,21 +130,31 @@ methylModesBatch <- function(betas = NULL,
     # 5b: mean beta value among all samples
     meanBeta <- mean(probe)
     
-    template[1,] <- list("probeName" = rownames(probe),
-      "numPeaks" = nrow(detected), 
-      "meanBeta" = meanBeta,
-      "peakLocations" = probeDensityEst$x[detected$maximaIdx],
-      # "fittedHeights" = probeDensityEst$y[detected$maximaIdx],
-      "leftMin" = probeDensityEst$x[detected$leftMinIdx],
-      "rightMin" = probeDensityEst$x[detected$rightMinIdx],
-      "proportionSample" = detected$propSample,
-      "peakVariance" = peakVariance) #,
-      # "gapFound" = foundPeaks$gap) 
-    # The complicated version of methylModes has foundPeaks$gapFound
-    template
+    # Create a single row data.table with proper list columns
+    # Use list() to wrap vectors so they become list elements
+    data.table("probeName" = rownames(probe),
+               "numPeaks" = nrow(detected), 
+               "meanBeta" = meanBeta,
+               "peakLocations" = list(probeDensityEst$x[detected$maximaIdx]),
+               "leftMin" = list(probeDensityEst$x[detected$leftMinIdx]),
+               "rightMin" = list(probeDensityEst$x[detected$rightMinIdx]),
+               "proportionSample" = list(detected$propSample),
+               "peakVariance" = list(peakVariance))
+    
+    # template[1,] <- list("probeName" = rownames(probe),
+    #   "numPeaks" = nrow(detected), 
+    #   "meanBeta" = meanBeta,
+    #   "peakLocations" = probeDensityEst$x[detected$maximaIdx],
+    #   # "fittedHeights" = probeDensityEst$y[detected$maximaIdx],
+    #   "leftMin" = probeDensityEst$x[detected$leftMinIdx],
+    #   "rightMin" = probeDensityEst$x[detected$rightMinIdx],
+    #   "proportionSample" = detected$propSample,
+    #   "peakVariance" = peakVariance)
+    # 
+    # template
   }
   # Close connections (not strictly necessary, but best practice)
   parallel::stopCluster(cl)
-  
+
   peakSummary
 }

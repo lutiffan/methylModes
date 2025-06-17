@@ -1,14 +1,14 @@
 library(methylModes)
 
-# # Essential packages for Shiny app functionality
-# library(ggplot2)
-# library(plotly)
-# library(data.table)
-# library(dplyr)
-# library(DT)
-# library(parallelly)
-# library(foreach)
-# library(iterators)
+# Essential packages for Shiny app functionality
+library(ggplot2)
+library(plotly)
+library(data.table)
+library(dplyr)
+library(DT)
+library(parallelly)
+library(foreach)
+library(iterators)
 
 # Load configuration values
 source(system.file("shiny", "config.R", package = "methylModes"))

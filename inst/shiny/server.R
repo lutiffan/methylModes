@@ -449,7 +449,7 @@ function(input, output) {
     req(input$peakSummaryFile$datapath) # Ensure the file is uploaded
     peakSummary <- fread(input$peakSummaryFile$datapath)
     peakSummary <- peakSummary[order(peakSummary$probeName),]
-    reset("runMultiProbe")
+    shinyjs::reset("runMultiProbe")
     
     # Users need to restart the app if they want to run a new analysis after uploading past results
     shinyjs::disable("runMultiProbe")
@@ -513,7 +513,7 @@ function(input, output) {
                                       densityAdjust = params$densityAdjust,
                                       pushToZero = params$pushToZero)
     }
-    
+
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
 
@@ -541,7 +541,7 @@ function(input, output) {
     req(input$betaFile$datapath)
     
     getMultiProbeSummary()
-    reset("runMultiProbe")
+    shinyjs::reset("runMultiProbe")
     shinyjs::enable("downloadPeakSummary")
   }) 
   
@@ -736,7 +736,7 @@ function(input, output) {
     fittedDensity <- density(beta.data, from = 0, to = 1, n = FIXED_NUM_BREAKS, 
                              adjust = DEFAULT_DENSITY_ADJUST, bw = bandwidth)
 
-    if (is.list(peakSummary$peakLocations)) {
+    if (is.list(peak.summary$peakLocations)) {
       detectedPeaks <- unlist(peak.summary$peakLocations)
   
       detectedMins <- c(unlist(peak.summary$leftMin), 
@@ -754,7 +754,7 @@ function(input, output) {
       closestIndex <- which.min(abs(fittedDensity$x - detectedPeaks[p]))
       fittedPeaks[p] <- fittedDensity$y[closestIndex]
     }
-    
+
     fittedMins <- numeric(length(detectedMins)) 
     for (m in 1:length(detectedMins)) {
       closestIndex <- which.min(abs(fittedDensity$x - detectedMins[m]))
