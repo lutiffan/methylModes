@@ -5,7 +5,75 @@
 # 6194 / "cg15209419"
 # 4283 / "cg10531774"
 
-methylModes <- function(row.data = NULL) {
+#' Detect Methylation Modes in DNA Methylation Data
+#' 
+#' This function analyzes a vector of DNA methylation beta values to detect 
+#' distinct methylation modes (peaks) in the data. It uses kernel density 
+#' estimation and various filtering steps to identify significant peaks while 
+#' accounting for noise and biological relevance.
+#' 
+#' @param row.data A numeric vector of methylation beta values (between 0 and 1).
+#' @param bandwidthType Character string specifying the bandwidth selection 
+#'   method: "nrd0" (default) or "sheatherJones".
+#' @param numBreaks Integer number of points for density estimation 
+#'   (default: 512).
+#' @param densityAdjust Numeric adjustment factor for density estimation 
+#'   (default: 1).
+#' @param kernelType Character string specifying the kernel type 
+#'   (default: "gaussian").
+#' @param pushToZero Numeric threshold for pushing small density values to zero 
+#'   (default: 1e-10).
+#' @param proportionSample Numeric threshold for minimum proportion of samples 
+#'   in a peak (default: 0.05).
+#' @param peakDistance Numeric minimum distance between peaks (default: 0.1).
+#' 
+#' @return A list containing:
+#' \describe{
+#'   \item{detected}{A data frame with peak information including maxima 
+#'         indices, left/right minima indices, and proportion of samples in 
+#'         each peak}
+#'   \item{probeDensityEst}{The density estimation object from stats::density()}
+#'   \item{gap}{Logical indicating if there are gaps between peaks}
+#'   \item{nearCutoffPropSample}{Logical indicating if any peaks are near the 
+#'         proportion cutoff}
+#'   \item{nearCutoffPeakDistance}{Logical indicating if any peaks are near the 
+#'         distance cutoff}
+#' }
+#' 
+#' @details
+#' The function processes the data in several steps:
+#' \enumerate{
+#'   \item Estimates the density function using kernel density estimation
+#'   \item Detects local maxima and minima in the density function
+#'   \item Filters peaks based on minimum proportion of samples
+#'   \item Merges peaks that are too close together
+#'   \item Identifies gaps between peaks
+#' }
+#' 
+#' @examples
+#' # Generate example methylation data with two modes
+#' set.seed(123)
+#' data <- c(rnorm(100, mean = 0.3, sd = 0.1),
+#'          rnorm(100, mean = 0.7, sd = 0.1))
+#' data <- pmax(0, pmin(1, data))  # Ensure values are between 0 and 1
+#' 
+#' # Detect methylation modes
+#' result <- methylModes(data)
+#' 
+#' # Plot the results
+#' plot(result$probeDensityEst, main = "Density Estimation with Detected Peaks")
+#' abline(v = result$probeDensityEst$x[result$detected$maximaIdx], 
+#'        col = "red", lty = 2)
+#' 
+#' @export
+methylModes <- function(row.data = NULL,
+                       bandwidthType = "nrd0",
+                       numBreaks = 512,
+                       densityAdjust = 1,
+                       kernelType = "gaussian",
+                       pushToZero = 1e-10,
+                       proportionSample = 0.05,
+                       peakDistance = 0.1) {
   # Gets hyperparameters from the environment
   # TODO: find a smarter way to pass hyperparameters and save them all in one place
   if (is.na(bandwidthType)) {

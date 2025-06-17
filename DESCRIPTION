@@ -1,0 +1,45 @@
+Package: methylModes
+Type: Package
+Title: Computationally Efficient Detection of Multi-Modal Distributions in DNA Methylation Data
+Version: 1.0
+Date: 2025-06-16
+Author: T. Sophia Luo
+Maintainer: T. Sophia Luo <lutiffan@umich.edu>
+Description: Identification of CpG sites with multimodal DNA methylation distributions, which can be caused by biological variation or technical artifacts, is an important quality control step when analyzing whole genome methylation data. MethylModes is a computationally efficient, peak detection algorithm implemented in a Shiny application and easily incorporated into existing analytic pipelines for large-scale epigenetic studies.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    stats,
+    utils,
+    graphics,
+    methods,
+    shiny (>= 1.9.1),
+    shinyjs (>= 2.1.0),
+    shinybusy (>= 0.3.3),
+    shinycssloaders (>= 1.1.0),
+    shinyWidgets (>= 0.8.6),
+    shinythemes (>= 1.2.0),
+    ggplot2 (>= 3.5.1),
+    plotly (>= 4.10.4),
+    DT (>= 0.33),
+    data.table (>= 1.15.4),
+    dplyr (>= 1.1.4),
+    foreach (>= 1.5.2),
+    iterators (>= 1.0.14),
+    parallelly (>= 1.38.0),
+    doParallel (>= 1.0.17),
+    progress (>= 1.2.3),
+    doFuture (>= 1.0.1),
+    progressr (>= 0.14.0)
+Suggests:
+    testthat (>= 3.2.2),
+    knitr (>= 1.49),
+    rmarkdown (>= 2.29),
+    MASS (>= 7.3.64)
+VignetteBuilder: knitr
+Authors@R: c(
+    person("T. Sophia", "Luo",
+           comment = c(ORCID = "0009-0002-5451-4827"))
+  )

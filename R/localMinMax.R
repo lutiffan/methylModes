@@ -1,10 +1,43 @@
-# Function to return indices of local min/maxima
-
-# # Can use simulated data for debugging
-# fitted <- probeDensityEst$y
-# zeroThreshold = 0.01
-
-# Assume input data is not all slope == 0
+#' Detect Local Minima and Maxima in a Density Function
+#' 
+#' This function identifies the indices of local minima and maxima in a density function,
+#' typically used for peak detection in DNA methylation data. It handles edge cases and
+#' ensures proper boundary conditions for the density estimation.
+#' 
+#' @param fitted A numeric vector representing the density function values.
+#' @param zeroThreshold A numeric value (default: 1e-6) below which values are considered zero.
+#' 
+#' @return A data frame with three columns:
+#' \describe{
+#'   \item{maximaIdx}{Indices of local maxima in the input vector}
+#'   \item{leftMinIdx}{Indices of left minima for each maximum}
+#'   \item{rightMinIdx}{Indices of right minima for each maximum}
+#' }
+#' 
+#' @details
+#' The function processes the input vector in several steps:
+#' \enumerate{
+#'   \item Values below zeroThreshold are set to zero
+#'   \item Slope changes are detected using diff()
+#'   \item Local maxima and minima are identified based on slope changes
+#'   \item Edge cases are handled (e.g., flat regions at start/end)
+#' }
+#' 
+#' @examples
+#' # Create a simple density function with two peaks
+#' x <- seq(0, 1, length.out = 100)
+#' y <- dnorm(x, mean = 0.3, sd = 0.1) + dnorm(x, mean = 0.7, sd = 0.1)
+#' 
+#' # Find local minima and maxima
+#' peaks <- localMinMax(y)
+#' 
+#' # Plot the results
+#' plot(x, y, type = "l")
+#' points(x[peaks$maximaIdx], y[peaks$maximaIdx], col = "red", pch = 16)
+#' points(x[peaks$leftMinIdx], y[peaks$leftMinIdx], col = "blue", pch = 16)
+#' points(x[peaks$rightMinIdx], y[peaks$rightMinIdx], col = "blue", pch = 16)
+#' 
+#' @export
 localMinMax <- function(fitted, zeroThreshold = 1e-6) {
   
   fitted <- ifelse(fitted < zeroThreshold, 0, fitted)
@@ -56,5 +89,7 @@ localMinMax <- function(fitted, zeroThreshold = 1e-6) {
     rightMin[length(rightMin)] = length(slopeZero)
   } 
   
-  data.frame("maximaIdx" = slopeZero[whereMax], "leftMinIdx" = c(1, slopeZero[leftMin]), "rightMinIdx" = slopeZero[rightMin])
+  data.frame("maximaIdx" = slopeZero[whereMax], 
+             "leftMinIdx" = c(1, slopeZero[leftMin]), 
+             "rightMinIdx" = slopeZero[rightMin])
 }

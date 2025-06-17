@@ -70,10 +70,12 @@ function(input, output) {
     if (is.null(betas)) return(NULL)
     
     if (input$arrayType == "il450k") {
-      manifestFile <- fread(paste0(getwd(), "/IlluminaManifest450k.csv"))
+      manifestFile <- fread(system.file("extdata", "IlluminaManifest450k.csv", 
+                                        package = "methylModes"))
       
     } else if (input$arrayType == "ilepic1") {
-      manifestFile <- fread(paste0(getwd(), "/IlluminaManifestEPIC.csv"))
+      manifestFile <- fread(system.file("extdata", "IlluminaManifestEPIC.csv", 
+                                        package = "methylModes"))
       
     } else {
       simpleError("Invalid annotation package selected.")

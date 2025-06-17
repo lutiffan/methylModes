@@ -1,5 +1,85 @@
-# Requires that hyperparameters exist in the environment
-methylModesBatch <- function(betas = NULL) {
+#' Batch Process Methylation Mode Detection
+#' 
+#' This function processes multiple probes (rows) of DNA methylation data in 
+#' parallel to detect modes in methylation data for each probe. It uses parallel 
+#' processing to efficiently handle large datasets and returns a summary of the 
+#' detected peaks for each probe.
+#' 
+#' @param betas A matrix (do not use a data.frame) of methylation beta values 
+#'   where rows are probes and columns are samples. Row names should be probe IDs.
+#' @param proportionSample Numeric threshold for minimum proportion of samples 
+#'   in a peak (default: from global environment).
+#' @param peakDistance Numeric minimum distance between peaks 
+#'   (default: from global environment).
+#' @param kernelType Character string specifying the kernel type 
+#'   (default: from global environment).
+#' @param bandwidthType Character string specifying the bandwidth selection 
+#'   method (default: from global environment).
+#' @param numBreaks Integer number of points for density estimation 
+#'   (default: from global environment).
+#' @param densityAdjust Numeric adjustment factor for density estimation 
+#'   (default: from global environment).
+#' @param pushToZero Numeric threshold for pushing small density values to zero
+#'   (default: from global environment).
+#' 
+#' @return A data.table with one row per probe containing:
+#' \describe{
+#'   \item{probeName}{Character vector of probe IDs}
+#'   \item{numPeaks}{Numeric vector of number of peaks detected per probe}
+#'   \item{meanBeta}{Numeric vector of mean beta value per probe}
+#'   \item{peakLocations}{List of numeric vectors containing peak locations 
+#'         for each probe}
+#'   \item{leftMin}{List of numeric vectors containing left minima for each peak}
+#'   \item{rightMin}{List of numeric vectors containing right minima for each peak}
+#'   \item{proportionSample}{List of numeric vectors containing proportion of 
+#'         samples in each peak}
+#'   \item{peakVariance}{List of numeric vectors containing variance of values 
+#'         in each peak}
+#' }
+#' 
+#' @details
+#' The function processes the data in parallel using the following steps:
+#' \enumerate{
+#'   \item Creates a parallel cluster using available cores (minus one)
+#'   \item Processes each probe in parallel using methylModes()
+#'   \item Combines results into a data.table
+#'   \item Calculates additional statistics (mean, variance) for each peak
+#' }
+#' 
+#' @examples
+#' # Generate example methylation data
+#' set.seed(123)
+#' probes <- 10
+#' samples <- 100
+#' betas <- matrix(runif(probes * samples), nrow = probes, ncol = samples)
+#' rownames(betas) <- paste0("cg", 1:probes)
+#' 
+#' # Run batch processing
+#' results <- methylModesBatch(betas)
+#' 
+#' # View summary of results
+#' print(results[, .(probeName, numPeaks, meanBeta)])
+#' 
+#' # Plot distribution of peak counts
+#' hist(results$numPeaks, main = "Distribution of Peak Counts",
+#'      xlab = "Number of Peaks", ylab = "Frequency")
+#' 
+#' @export
+methylModesBatch <- function(betas = NULL,
+                            proportionSample = get("proportionSample", 
+                                                   envir = .GlobalEnv),
+                            peakDistance = get("peakDistance", 
+                                               envir = .GlobalEnv),
+                            kernelType = get("kernelType", 
+                                             envir = .GlobalEnv),
+                            bandwidthType = get("bandwidthType", 
+                                                envir = .GlobalEnv),
+                            numBreaks = get("numBreaks", 
+                                            envir = .GlobalEnv),
+                            densityAdjust = get("densityAdjust", 
+                                                envir = .GlobalEnv),
+                            pushToZero = get("pushToZero", 
+                                             envir = .GlobalEnv)) {
 
   if (is.null(betas)) stop(simpleError("Invalid beta matrix."))
   
@@ -42,7 +122,8 @@ methylModesBatch <- function(betas = NULL) {
                                               "densityAdjust",
                                               "pushToZero")) %dopar% {
     
-    # Steps 1-4: smooth histogram, detect local maxima/minima, filter by spacing, filter by sample %, detect presence of any "gaps"
+    # Steps 1-4: smooth histogram, detect local maxima/minima, filter by 
+    # spacing, filter by sample %, detect presence of any "gaps"
     foundPeaks <- methylModes(row.data = probe)
     detected <- foundPeaks$detected
     probeDensityEst <- foundPeaks$probeDensityEst
