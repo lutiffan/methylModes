@@ -14,18 +14,18 @@
 #' 
 #' @param row.data A numeric vector of methylation beta values (between 0 and 1).
 #' @param bandwidthType Character string specifying the bandwidth selection 
-#'   method: "nrd0" (default) or "sheatherJones".
+#'   method: NA (default, uses "nrd0") or "sheatherJones".
 #' @param numBreaks Integer number of points for density estimation 
-#'   (default: 512).
+#'   (default: 500).
 #' @param densityAdjust Numeric adjustment factor for density estimation 
-#'   (default: 1).
+#'   (default: 1.5).
 #' @param kernelType Character string specifying the kernel type 
 #'   (default: "gaussian").
 #' @param pushToZero Numeric threshold for pushing small density values to zero 
-#'   (default: 1e-10).
+#'   (default: 1e-6).
 #' @param proportionSample Numeric threshold for minimum proportion of samples 
-#'   in a peak (default: 0.05).
-#' @param peakDistance Numeric minimum distance between peaks (default: 0.1).
+#'   in a peak (default: 0.01).
+#' @param peakDistance Numeric minimum distance between peaks (default: 0.10).
 #' 
 #' @return A list containing:
 #' \describe{
@@ -67,20 +67,20 @@
 #' 
 #' @export
 methylModes <- function(row.data = NULL,
-                       bandwidthType = "nrd0",
-                       numBreaks = 512,
-                       densityAdjust = 1,
+                       bandwidthType = NA,
+                       numBreaks = 500,
+                       densityAdjust = 1.5,
                        kernelType = "gaussian",
-                       pushToZero = 1e-10,
-                       proportionSample = 0.05,
-                       peakDistance = 0.1) {
-  # Gets hyperparameters from the environment
-  # TODO: find a smarter way to pass hyperparameters and save them all in one place
+                       pushToZero = 1e-6,
+                       proportionSample = 0.01,
+                       peakDistance = 0.10) {
+
   if (is.na(bandwidthType)) {
     bandwidth = "nrd0"
   } else if (bandwidthType == "sheatherJones") {
     bandwidth = bw.SJ(row.data)
   }
+  
   # Step 1: Smooth a histogram of the data
   probeDensityEst <- density(row.data, from = 0, to = 1, n = numBreaks, 
                              adjust = densityAdjust, bw = bandwidth, 

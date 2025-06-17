@@ -2,7 +2,7 @@ function(input, output) {
   # Arbitrarily set maximum file upload size to 100 GB
   # The real limit comes from the user's local memory limit
   # Is there a simple way to set this to max memory based on local machine?
-  options(shiny.maxRequestSize = 100*1024^3)
+  options(shiny.maxRequestSize = MAX_FILE_SIZE)
   
   ##### Get Started #####
   
@@ -10,19 +10,21 @@ function(input, output) {
   getBetas <- reactive({
     req(input$betaFile$datapath)
     
-    fileType <- file_ext(input$betaFile$datapath)
+    fileType <- tools::file_ext(input$betaFile$datapath)
     
     if (fileType %in% c("RDS", "rds")) {
       betas <- readRDS(input$betaFile$datapath) 
     } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
-      betas <-as.matrix(data.table::fread(input$betaFile$datapath), rownames = 1)
+      betas <-as.matrix(fread(input$betaFile$datapath), rownames = 1)
     } else if (fileType %in% c("RDA", "rda")) {
-      betas <- load(file = input$betaFile$datapath)
+      objname <- load(input$betaFile$datapath)
+      betas <- get(objname)
     } else if (fileType == "qs") {
       betas <- qread(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
     }
+
     # Sort beta matrix (important for matching with annotation data)
     betas[order(rownames(betas)),]
   })
@@ -70,12 +72,14 @@ function(input, output) {
     if (is.null(betas)) return(NULL)
     
     if (input$arrayType == "il450k") {
-      manifestFile <- fread(system.file("extdata", "IlluminaManifest450k.csv", 
-                                        package = "methylModes"))
+      # Load data from RDA file
+      data("IlluminaManifest450k", package = "methylModes", envir = environment())
+      manifestFile <- IlluminaManifest450k
       
     } else if (input$arrayType == "ilepic1") {
-      manifestFile <- fread(system.file("extdata", "IlluminaManifestEPIC.csv", 
-                                        package = "methylModes"))
+      # Load data from RDA file
+      data("IlluminaManifestEPIC", package = "methylModes", envir = environment())
+      manifestFile <- IlluminaManifestEPIC
       
     } else {
       simpleError("Invalid annotation package selected.")
@@ -202,11 +206,6 @@ function(input, output) {
     betas <- getBetas()
     if (is.null(betas)) return()
     
-    # relevantLabels <- as.data.frame(
-    #   sub(pattern = "chr", replacement = "", x = Locations[rownames(betas), "chr"])
-    # )
-    # names(relevantLabels) <- "Chromosome"
-    
     relevantLabels <- getAnnotationLocal()
     if (is.null(relevantLabels)) return(NULL)
     
@@ -234,16 +233,9 @@ function(input, output) {
                                     levels = c("N_Shelf", "N_Shore", "Island",
                                                "S_Shore", "S_Shelf", "OpenSea"))
 
-    islandColors <- c("Island" ="#FDE333"  ,       
-                      "N_Shore" = "#C1DE35",      
-                      "S_Shore" = "#00C376",      
-                      "N_Shelf" = "#008498",      # Blue
-                      "S_Shelf" = "#006892",      # Blue
-                      "OpenSea" = "#363D7C")      # Dark Blue (or the closest that matches)
-    
     p <- ggplot(relevantLabels, aes(x = Island, fill = Island)) +
       geom_bar(color = "black") +  # Add black border to the bars
-      scale_fill_manual(values = islandColors) +  # Assign the custom colors
+      scale_fill_manual(values = ISLAND_COLORS) +  # Assign the custom colors
       labs(title = "CpG Island Coverage", x = "", y = "Count") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
@@ -255,7 +247,7 @@ function(input, output) {
   
   observeEvent(input$betaFile, {
     if (!is.null(input$betaFile$datapath) & 
-        file_ext(input$betaFile$datapath) %in% 
+        tools::file_ext(input$betaFile$datapath) %in% 
         c("RDS", "rds", "csv", "TXT", "txt", "tsv", "RDA", "rda")) {
       
       # Probe analysis inputs
@@ -339,22 +331,32 @@ function(input, output) {
   
   #### Set up graph and table after analyzing a single probe ####
   getSingleProbeSummary <- eventReactive(probeParams(), {
+
     betas <- getBetas()
     if (is.null(betas)) return()
-    
-    # Set MethylModes parameters
-    proportionSample <<- probeParams()$proportionSample
-    peakDistance <<- probeParams()$peakDistance
-    kernelType <<- KERNEL_TYPE
-    bandwidthType <<- BANDWIDTH_TYPE
-    numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjust
-    pushToZero <- input$pushToZero
+
+    # Get parameters from UI inputs
+    params <- list(
+      proportionSample = probeParams()$proportionSample,
+      peakDistance = probeParams()$peakDistance,
+      kernelType = FIXED_KERNEL_TYPE,
+      bandwidthType = FIXED_BANDWIDTH_TYPE,
+      numBreaks = FIXED_NUM_BREAKS,
+      densityAdjust = DEFAULT_DENSITY_ADJUST,
+      pushToZero = DEFAULT_PUSH_TO_ZERO
+    )
 
     probeId <- probeParams()$probeId
     rowId <- which(rownames(betas) == probeId)
 
-    methylModes(row.data = betas[rowId,])
+    methylModes(row.data = betas[rowId,],
+                proportionSample = params$proportionSample,
+                peakDistance = params$peakDistance,
+                kernelType = params$kernelType,
+                bandwidthType = params$bandwidthType,
+                numBreaks = params$numBreaks,
+                densityAdjust = params$densityAdjust,
+                pushToZero = params$pushToZero)
   })
   
   # Example of trimodal: cg26261358
@@ -417,11 +419,7 @@ function(input, output) {
       geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
       scale_color_manual(
         name = "Legend",
-        values = c(
-          "Density Estimate" = "#00588B", 
-          "Maxima" = "#B2DC3C", 
-          "Minima (peak boundaries)" = "#009B95"
-        )
+        values = DENSITY_PLOT_COLORS
       )
     
     if (probeParams()$showDensity) {
@@ -449,7 +447,7 @@ function(input, output) {
   # Reactive expression that responds to file upload
   getUploadedPeakSummary <- reactive({
     req(input$peakSummaryFile$datapath) # Ensure the file is uploaded
-    peakSummary <- data.table::fread(input$peakSummaryFile$datapath)
+    peakSummary <- fread(input$peakSummaryFile$datapath)
     peakSummary <- peakSummary[order(peakSummary$probeName),]
     reset("runMultiProbe")
     
@@ -480,18 +478,16 @@ function(input, output) {
     
     req(betaFilter())
 
-    # betas <- readRDS("/home/lutiffan/betaMatrix/smolBetas.RDS")
-
-    # Set MethylModes parameters
-    proportionSample <<- input$proportionSample
-    peakDistance <<- input$peakDistance
-    kernelType <<- KERNEL_TYPE
-    bandwidthType <<- BANDWIDTH_TYPE
-    numBreaks <- NUM_BREAKS
-    densityAdjust <- input$densityAdjust
-    pushToZero <- input$pushToZero
-    # rangeStart <- input$rangeStart
-    # rangeEnd <- input$rangeEnd
+    # Get parameters from UI inputs
+    params <- list(
+      proportionSample = input$proportionSample,
+      peakDistance = input$peakDistance,
+      kernelType = FIXED_KERNEL_TYPE,
+      bandwidthType = FIXED_BANDWIDTH_TYPE,
+      numBreaks = FIXED_NUM_BREAKS,
+      densityAdjust = DEFAULT_DENSITY_ADJUST,
+      pushToZero = DEFAULT_PUSH_TO_ZERO
+    )
     
     # totalRows = rangeEnd - rangeStart + 1
     print(paste("Running in parallel on", availableCores() - 1, "cores"))
@@ -499,9 +495,23 @@ function(input, output) {
     # to the user-requested range! Fixed 6/27/24
     
     if (input$region == "wholeGenome") {
-      peakSummary <- methylModesBatch(betas)
+      peakSummary <- methylModesBatch(betas,
+                                      proportionSample = params$proportionSample,
+                                      peakDistance = params$peakDistance,
+                                      kernelType = params$kernelType,
+                                      bandwidthType = params$bandwidthType,
+                                      numBreaks = params$numBreaks,
+                                      densityAdjust = params$densityAdjust,
+                                      pushToZero = params$pushToZero)
     } else {
-      peakSummary <- methylModesBatch(betas[betaFilter(),])
+      peakSummary <- methylModesBatch(betas[betaFilter(),],
+                                      proportionSample = params$proportionSample,
+                                      peakDistance = params$peakDistance,
+                                      kernelType = params$kernelType,
+                                      bandwidthType = params$bandwidthType,
+                                      numBreaks = params$numBreaks,
+                                      densityAdjust = params$densityAdjust,
+                                      pushToZero = params$pushToZero)
     }
     
     # Sort results by number of detected peaks, descending
@@ -535,7 +545,7 @@ function(input, output) {
     shinyjs::enable("downloadPeakSummary")
   }) 
   
-  # output$peakCountBar <- renderPlotly({
+  # output$peakCountBar <- plotly::renderPlotly({
   #   req(input$runMultiProbe)
   #   peakSummary <- getMultiProbeSummary()
   #   if (is.null(peakSummary)) return()
@@ -637,7 +647,7 @@ function(input, output) {
   #   
   # })
 
-  output$peakSummaryTable <- DT::renderDataTable({
+  output$peakSummaryTable <- renderDataTable({
     peakSummary <- selectedPeakSummary()
     if (is.null(peakSummary)) return()
     
@@ -716,14 +726,15 @@ function(input, output) {
     beta.data <- betas[betaFilter,][multiProbeParams()$selectedRow, , drop = FALSE]
     peak.summary <- peakSummary[multiProbeParams()$selectedRow,]
     
-    if (is.na(BANDWIDTH_TYPE)) {
+    # Use fixed bandwidth type
+    if (is.na(FIXED_BANDWIDTH_TYPE)) {
       bandwidth = "nrd0"
-    } else if (bandwidthType == "sheatherJones") {
-      bandwidth = bw.SJ(betas[row.id,])
+    } else {
+      bandwidth = FIXED_BANDWIDTH_TYPE
     }
 
-    fittedDensity <- density(beta.data, from = 0, to = 1, n = numBreaks, 
-                             adjust = densityAdjust, bw = bandwidth)
+    fittedDensity <- density(beta.data, from = 0, to = 1, n = FIXED_NUM_BREAKS, 
+                             adjust = DEFAULT_DENSITY_ADJUST, bw = bandwidth)
 
     if (is.list(peakSummary$peakLocations)) {
       detectedPeaks <- unlist(peak.summary$peakLocations)
@@ -775,11 +786,7 @@ function(input, output) {
       geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
       scale_color_manual(
         name = "Legend",
-        values = c(
-          "Density Estimate" = "#00588B", 
-          "Maxima" = "#B2DC3C", 
-          "Minima (peak boundaries)" = "#009B95"
-        )
+        values = DENSITY_PLOT_COLORS
       )
 
     if (multiProbeParams()$showDensity) {
@@ -919,7 +926,7 @@ function(input, output) {
   })
   
   # Cross-tabulate for multimodal tables (SNP under probe)
-  output$tableMultimodalSNP <- DT::renderDataTable({
+  output$tableMultimodalSNP <- renderDataTable({
     req(selectedPeakSummary())
     req(getAnnotationLocal())
     peakSummary <- selectedPeakSummary()
@@ -942,7 +949,7 @@ function(input, output) {
                          & annotationData$SNP_10Bp_and_beyond != "")
       }
 
-      return(DT::datatable(data.frame(`Number of Modes` = peakCounts,
+      return(datatable(data.frame(`Number of Modes` = peakCounts,
                                       `SNP within 10 bp` = snpClose,
                                       `SNP in 10-50 bp` = snpFar),
                            rownames = FALSE))
@@ -960,11 +967,11 @@ function(input, output) {
       )
     }
     
-    DT::datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
+    datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
   })
   
   # Cross-tabulate for multimodal tables (Relation to CpG island)
-  output$tableMultimodalCpG <- DT::renderDataTable({
+  output$tableMultimodalCpG <- renderDataTable({
     req(selectedPeakSummary())
     peakSummary <- selectedPeakSummary()
     req(getAnnotationLocal())
@@ -972,6 +979,6 @@ function(input, output) {
     annotationData <- annotationData[betaFilter(),]
     
     crossTab <- table("Number of Modes Detected" = peakSummary$numPeaks, annotationData$Island)
-    DT::datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
+    datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
   })
 }

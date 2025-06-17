@@ -8,19 +8,19 @@
 #' @param betas A matrix (do not use a data.frame) of methylation beta values 
 #'   where rows are probes and columns are samples. Row names should be probe IDs.
 #' @param proportionSample Numeric threshold for minimum proportion of samples 
-#'   in a peak (default: from global environment).
+#'   in a peak (default: 0.01).
 #' @param peakDistance Numeric minimum distance between peaks 
-#'   (default: from global environment).
+#'   (default: 0.10).
 #' @param kernelType Character string specifying the kernel type 
-#'   (default: from global environment).
+#'   (default: "gaussian").
 #' @param bandwidthType Character string specifying the bandwidth selection 
-#'   method (default: from global environment).
+#'   method (default: NA).
 #' @param numBreaks Integer number of points for density estimation 
-#'   (default: from global environment).
+#'   (default: 500).
 #' @param densityAdjust Numeric adjustment factor for density estimation 
-#'   (default: from global environment).
+#'   (default: 1.5).
 #' @param pushToZero Numeric threshold for pushing small density values to zero
-#'   (default: from global environment).
+#'   (default: 1e-6).
 #' 
 #' @return A data.table with one row per probe containing:
 #' \describe{
@@ -54,8 +54,12 @@
 #' betas <- matrix(runif(probes * samples), nrow = probes, ncol = samples)
 #' rownames(betas) <- paste0("cg", 1:probes)
 #' 
-#' # Run batch processing
+#' # Run batch processing with default parameters
 #' results <- methylModesBatch(betas)
+#' 
+#' # Run with custom parameters
+#' custom_params <- list(proportionSample = 0.1, peakDistance = 0.2)
+#' results <- methylModesBatch(betas, proportionSample = 0.1, peakDistance = 0.2)
 #' 
 #' # View summary of results
 #' print(results[, .(probeName, numPeaks, meanBeta)])
@@ -66,20 +70,13 @@
 #' 
 #' @export
 methylModesBatch <- function(betas = NULL,
-                            proportionSample = get("proportionSample", 
-                                                   envir = .GlobalEnv),
-                            peakDistance = get("peakDistance", 
-                                               envir = .GlobalEnv),
-                            kernelType = get("kernelType", 
-                                             envir = .GlobalEnv),
-                            bandwidthType = get("bandwidthType", 
-                                                envir = .GlobalEnv),
-                            numBreaks = get("numBreaks", 
-                                            envir = .GlobalEnv),
-                            densityAdjust = get("densityAdjust", 
-                                                envir = .GlobalEnv),
-                            pushToZero = get("pushToZero", 
-                                             envir = .GlobalEnv)) {
+                            proportionSample = 0.01,
+                            peakDistance = 0.10,
+                            kernelType = "gaussian",
+                            bandwidthType = NA,
+                            numBreaks = 500,
+                            densityAdjust = 1.5,
+                            pushToZero = 1e-6) {
 
   if (is.null(betas)) stop(simpleError("Invalid beta matrix."))
   
@@ -106,25 +103,20 @@ methylModesBatch <- function(betas = NULL,
   # Register parallel backend
   doParallel::registerDoParallel(cl)
   
-  # .export = ls(envir = globalenv())
-  
-  
   peakSummary <- foreach::foreach(probe = iter(betas, by = "row"), 
                                   .combine = "rbind",
-                                  .packages = c("foreach", "data.table"),
-                                  .export = c("methylModes",
-                                              "localMinMax",
-                                              "proportionSample",
-                                              "peakDistance",
-                                              "kernelType",
-                                              "bandwidthType",
-                                              "numBreaks",
-                                              "densityAdjust",
-                                              "pushToZero")) %dopar% {
+                                  .packages = c("foreach", "data.table", "methylModes")) %dopar% {
     
     # Steps 1-4: smooth histogram, detect local maxima/minima, filter by 
     # spacing, filter by sample %, detect presence of any "gaps"
-    foundPeaks <- methylModes(row.data = probe)
+    foundPeaks <- methylModes(row.data = probe,
+                              proportionSample = proportionSample,
+                              peakDistance = peakDistance,
+                              kernelType = kernelType,
+                              bandwidthType = bandwidthType,
+                              numBreaks = numBreaks,
+                              densityAdjust = densityAdjust,
+                              pushToZero = pushToZero)
     detected <- foundPeaks$detected
     probeDensityEst <- foundPeaks$probeDensityEst
     
@@ -154,7 +146,7 @@ methylModesBatch <- function(betas = NULL,
     template
   }
   # Close connections (not strictly necessary, but best practice)
-  stopCluster(cl)
+  parallel::stopCluster(cl)
   
   peakSummary
 }

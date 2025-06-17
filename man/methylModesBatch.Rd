@@ -6,13 +6,13 @@
 \usage{
 methylModesBatch(
   betas = NULL,
-  proportionSample = get("proportionSample", envir = .GlobalEnv),
-  peakDistance = get("peakDistance", envir = .GlobalEnv),
-  kernelType = get("kernelType", envir = .GlobalEnv),
-  bandwidthType = get("bandwidthType", envir = .GlobalEnv),
-  numBreaks = get("numBreaks", envir = .GlobalEnv),
-  densityAdjust = get("densityAdjust", envir = .GlobalEnv),
-  pushToZero = get("pushToZero", envir = .GlobalEnv)
+  proportionSample = 0.01,
+  peakDistance = 0.1,
+  kernelType = "gaussian",
+  bandwidthType = NA,
+  numBreaks = 500,
+  densityAdjust = 1.5,
+  pushToZero = 1e-06
 )
 }
 \arguments{
@@ -20,25 +20,25 @@ methylModesBatch(
 where rows are probes and columns are samples. Row names should be probe IDs.}
 
 \item{proportionSample}{Numeric threshold for minimum proportion of samples
-in a peak (default: from global environment).}
+in a peak (default: 0.01).}
 
 \item{peakDistance}{Numeric minimum distance between peaks
-(default: from global environment).}
+(default: 0.10).}
 
 \item{kernelType}{Character string specifying the kernel type
-(default: from global environment).}
+(default: "gaussian").}
 
 \item{bandwidthType}{Character string specifying the bandwidth selection
-method (default: from global environment).}
+method (default: NA).}
 
 \item{numBreaks}{Integer number of points for density estimation
-(default: from global environment).}
+(default: 500).}
 
 \item{densityAdjust}{Numeric adjustment factor for density estimation
-(default: from global environment).}
+(default: 1.5).}
 
 \item{pushToZero}{Numeric threshold for pushing small density values to zero
-(default: from global environment).}
+(default: 1e-6).}
 }
 \value{
 A data.table with one row per probe containing:
@@ -79,8 +79,12 @@ samples <- 100
 betas <- matrix(runif(probes * samples), nrow = probes, ncol = samples)
 rownames(betas) <- paste0("cg", 1:probes)
 
-# Run batch processing
+# Run batch processing with default parameters
 results <- methylModesBatch(betas)
+
+# Run with custom parameters
+custom_params <- list(proportionSample = 0.1, peakDistance = 0.2)
+results <- methylModesBatch(betas, proportionSample = 0.1, peakDistance = 0.2)
 
 # View summary of results
 print(results[, .(probeName, numPeaks, meanBeta)])

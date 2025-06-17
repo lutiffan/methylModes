@@ -1,7 +1,8 @@
 # TODO: let user set max file upload size via slider??
 # create a display that automatically adjusts to the dimensions of your user's browser window
+
 fluidPage(theme = shinythemes::shinytheme("cerulean"), 
-  useShinyjs(), # Gives us tricks like disabling an element until condition satisfied
+  shinyjs::useShinyjs(), # Gives us tricks like disabling an element until condition satisfied
   navbarPage("MethylModes",
              tabPanel("Get Started",
                       sidebarPanel(
@@ -50,16 +51,16 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         ),
                         # Histogram of all probes
                         textOutput(outputId = "wholeDataDimensions"),
-                        plotlyOutput(outputId = "betaOverview"),
+                        plotly::plotlyOutput(outputId = "betaOverview"),
                         conditionalPanel(
                           condition = "output.plotCreatedBetaOverview",
                           sliderInput(inputId = "numHistogramBinsBetaOverview", 
                                       "Number of histogram bins", 
                                       min = 10, max = 100,
-                                      value = 50)
+                                      value = DEFAULT_HISTOGRAM_BINS)
                         ),
-                        withSpinner(plotlyOutput(outputId = "chromosomeBar")),
-                        plotlyOutput(outputId = "islandBar")
+                        shinycssloaders::withSpinner(plotly::plotlyOutput(outputId = "chromosomeBar")),
+                        plotly::plotlyOutput(outputId = "islandBar")
                       )
               ),
              #### Run MethylModes ####
@@ -81,13 +82,13 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         h4("Peak Detection Thresholds"),
                         numericInput(label = "ProportionSample",
                                      inputId = "proportionSample",
-                                     value = proportionSample,
+                                     value = 0.01,  # From standardParams.R
                                      min = 0.00001,
                                      max = 0.99999),
                         helpText("Minimum proportion of sample considered to be a peak"),
                         numericInput(label = "PeakDistance",
                                      inputId = "peakDistance",
-                                     value = peakDistance,
+                                     value = 0.10,  # From standardParams.R
                                      min = 0.00001,
                                      max = 0.99999),
                         helpText("Minimum distance between adjacent peaks"),
@@ -122,17 +123,17 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           helpText("Label low-variance, hypomethylated, and hypermethylated CpG sites"),
                           numericInput(inputId = "varianceThreshold",
                                        label = "Variance",
-                                       value = 1e-5,
+                                       value = 1e-5,  # Original UI value
                                        min = 0,
                                        max = 1),
                           numericInput(inputId = "hypoThreshold",
                                        label = "Hypomethylation",
-                                       value = 0.3,
+                                       value = DEFAULT_HYPO_THRESHOLD,
                                        min = 0,
                                        max = 0.5),
                           numericInput(input = "hyperThreshold",
                                        label = "Hypermethylation",
-                                       value = 0.7,
+                                       value = DEFAULT_HYPER_THRESHOLD,
                                        min = 0.5,
                                        max = 1),
                           radioButtons("region", "Select region", 
@@ -168,13 +169,13 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           checkboxInput("showMinimaSingleProbe",
                                         label = "Display detected peak boundaries",
                                         value = FALSE),
-                          withSpinner(plotlyOutput(outputId = "probeVisual")),
+                          shinycssloaders::withSpinner(plotly::plotlyOutput(outputId = "probeVisual")),
                           conditionalPanel(
                             condition = "output.plotCreatedProbeVisual",
                             sliderInput(inputId = "numHistogramBinsOneProbe", 
                                         "Number of histogram bins", 
                                         min = 10, max = 100,
-                                        value = 50)
+                                        value = DEFAULT_HISTOGRAM_BINS)
                           ),
                           tableOutput('probeTable')
                         ),
@@ -201,7 +202,7 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           checkboxInput("showMinimaMultiProbe",
                                         label = "Display detected peak boundaries",
                                         value = FALSE),
-                          plotlyOutput("probeVisualFromPeakSummary"),
+                          plotly::plotlyOutput("probeVisualFromPeakSummary"),
                           DT::dataTableOutput("peakSummaryTable")
                         )
                         )

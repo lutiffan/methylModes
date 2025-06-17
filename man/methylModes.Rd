@@ -6,12 +6,12 @@
 \usage{
 methylModes(
   row.data = NULL,
-  bandwidthType = "nrd0",
-  numBreaks = 512,
-  densityAdjust = 1,
+  bandwidthType = NA,
+  numBreaks = 500,
+  densityAdjust = 1.5,
   kernelType = "gaussian",
-  pushToZero = 1e-10,
-  proportionSample = 0.05,
+  pushToZero = 1e-06,
+  proportionSample = 0.01,
   peakDistance = 0.1
 )
 }
@@ -19,24 +19,24 @@ methylModes(
 \item{row.data}{A numeric vector of methylation beta values (between 0 and 1).}
 
 \item{bandwidthType}{Character string specifying the bandwidth selection
-method: "nrd0" (default) or "sheatherJones".}
+method: NA (default, uses "nrd0") or "sheatherJones".}
 
 \item{numBreaks}{Integer number of points for density estimation
-(default: 512).}
+(default: 500).}
 
 \item{densityAdjust}{Numeric adjustment factor for density estimation
-(default: 1).}
+(default: 1.5).}
 
 \item{kernelType}{Character string specifying the kernel type
 (default: "gaussian").}
 
 \item{pushToZero}{Numeric threshold for pushing small density values to zero
-(default: 1e-10).}
+(default: 1e-6).}
 
 \item{proportionSample}{Numeric threshold for minimum proportion of samples
-in a peak (default: 0.05).}
+in a peak (default: 0.01).}
 
-\item{peakDistance}{Numeric minimum distance between peaks (default: 0.1).}
+\item{peakDistance}{Numeric minimum distance between peaks (default: 0.10).}
 }
 \value{
 A list containing:
