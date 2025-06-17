@@ -22,7 +22,10 @@ Illumina HumanMethylation450 BeadChip annotation
 IlluminaManifest450k
 }
 \description{
-Annotation data for Illumina HumanMethylation450 BeadChip array.
-Contains probe information including chromosome, position, and CpG island relations.
+Annotation data for Illumina HumanMethylation450 BeadChip array (v1.2).
+Contains probe information including chromosome, location on chromosome,
+position relative to CpG islands, and genetic variants under the probe.
+Used in methylModes Shiny app to allow analysis on a subset of data.
+Original manifest downloaded from \href{https://support.illumina.com/downloads/infinium_humanmethylation450_product_files.html}{Illumina Support}
 }
 \keyword{datasets}

@@ -3,7 +3,7 @@
 \docType{data}
 \name{largeRandomTestData}
 \alias{largeRandomTestData}
-\title{Random Test Data for methylModes}
+\title{Toy Data for methylModes}
 \format{
 A matrix with 500 rows and 800 columns:
 \describe{
@@ -19,7 +19,9 @@ Generated using \code{inst/generateLargeRandomData.R}
 largeRandomTestData
 }
 \description{
-A dataset containing randomly generated DNA methylation beta values
-that mimic real methylation data. Generated using a Gaussian mixture model.
+A dataset containing randomly generated multimodal distributions.
+Rather than being designed to mimic DNA methylation betas distributions,
+this data is intended to verify functionality of the Shiny app.
+Generated using a Gaussian mixture model.
 }
 \keyword{datasets}

@@ -42,9 +42,18 @@ y <- dnorm(x, mean = 0.3, sd = 0.1) + dnorm(x, mean = 0.7, sd = 0.1)
 peaks <- localMinMax(y)
 
 # Plot the results
-plot(x, y, type = "l")
-points(x[peaks$maximaIdx], y[peaks$maximaIdx], col = "red", pch = 16)
+plot(x, y, type = "l", main = "Density Function with Detected Peaks")
+points(x[peaks$maximaIdx], y[peaks$maximaIdx], col = "red", pch = 16, cex = 1.5)
 points(x[peaks$leftMinIdx], y[peaks$leftMinIdx], col = "blue", pch = 16)
 points(x[peaks$rightMinIdx], y[peaks$rightMinIdx], col = "blue", pch = 16)
+legend("topright", legend = c("Maxima", "Minima"), 
+       col = c("red", "blue"), pch = 16)
+
+# Print the detected peaks
+cat("Detected", nrow(peaks), "peaks:\n")
+for (i in 1:nrow(peaks)) {
+  cat("Peak", i, ": Maximum at index", peaks$maximaIdx[i], 
+      "(x =", round(x[peaks$maximaIdx[i]], 3), ")\n")
+}
 
 }

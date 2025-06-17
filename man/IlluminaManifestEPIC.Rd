@@ -23,7 +23,10 @@ Illumina HumanMethylationEPIC BeadChip annotation
 IlluminaManifestEPIC
 }
 \description{
-Annotation data for Illumina HumanMethylationEPIC BeadChip array.
-Contains probe information including chromosome, position, and CpG island relations.
+Annotation data for Illumina HumanMethylationEPIC BeadChip array (v1.0).
+Contains probe information including chromosome, location on chromosome,
+position relative to CpG islands, and genetic variants under the probe.
+Used in methylModes Shiny app to allow analysis on a subset of data.
+Original manifest downloaded from \href{https://support.illumina.com/downloads/infinium-methylationepic-v1-0-product-files.html}{Illumina Support}.
 }
 \keyword{datasets}

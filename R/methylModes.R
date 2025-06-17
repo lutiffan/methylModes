@@ -1,16 +1,11 @@
-# seeDetected(original.data = row.data, fitted.density = probeDensityEst, detected.peaks = detected, row.id = row.index)
-
-# Refined on examples:
-# 173453 / "cg13332114"
-# 6194 / "cg15209419"
-# 4283 / "cg10531774"
-
-#' Detect Methylation Modes in DNA Methylation Data
+#' Detect Modes in DNA Methylation Data
 #' 
-#' This function analyzes a vector of DNA methylation beta values to detect 
-#' distinct methylation modes (peaks) in the data. It uses kernel density 
-#' estimation and various filtering steps to identify significant peaks while 
-#' accounting for noise and biological relevance.
+#' The methylModes algorithm analyzes a vector of DNA methylation beta values to detect 
+#' distinct modes (peaks) in the data. It leverages the 
+#' kernel density estimation method implemented in base R to infer the 
+#' locations of distinct modes in distributions of probe-level beta values 
+#' It interprets the estimated density curves using the predetermined 
+#' hyperparameters to identify and ignore false modes.
 #' 
 #' @param row.data A numeric vector of methylation beta values (between 0 and 1).
 #' @param bandwidthType Character string specifying the bandwidth selection 
@@ -33,7 +28,6 @@
 #'         indices, left/right minima indices, and proportion of samples in 
 #'         each peak}
 #'   \item{probeDensityEst}{The density estimation object from stats::density()}
-#'   \item{gap}{Logical indicating if there are gaps between peaks}
 #'   \item{nearCutoffPropSample}{Logical indicating if any peaks are near the 
 #'         proportion cutoff}
 #'   \item{nearCutoffPeakDistance}{Logical indicating if any peaks are near the 
@@ -61,7 +55,8 @@
 #' result <- methylModes(data)
 #' 
 #' # Plot the results
-#' plot(result$probeDensityEst, main = "Density Estimation with Detected Peaks")
+#' plot(result$probeDensityEst, main = "Density Estimation with Detected Peaks",
+#' xlab = "Simulated beta value")
 #' abline(v = result$probeDensityEst$x[result$detected$maximaIdx], 
 #'        col = "red", lty = 2)
 #' 

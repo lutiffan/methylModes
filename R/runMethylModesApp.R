@@ -32,9 +32,7 @@
 #' }
 #' 
 #' @export
-runMethylModesApp <- function(launch.browser = TRUE, 
-                              port = 3838, 
-                              host = "127.0.0.1") {
+runMethylModesApp <- function(launch.browser = TRUE) {
   
   # Get the path to the Shiny app
   app_dir <- system.file("shiny", package = "methylModes")
@@ -45,7 +43,5 @@ runMethylModesApp <- function(launch.browser = TRUE,
   
   # Launch the Shiny app
   shiny::runApp(app_dir, 
-                launch.browser = launch.browser, 
-                port = port, 
-                host = host)
+                launch.browser = launch.browser)
 } 

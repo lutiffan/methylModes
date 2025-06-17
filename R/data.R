@@ -1,7 +1,10 @@
 #' Illumina 450k Manifest Data
 #' 
-#' Annotation data for Illumina HumanMethylation450 BeadChip array.
-#' Contains probe information including chromosome, position, and CpG island relations.
+#' Annotation data for Illumina HumanMethylation450 BeadChip array (v1.2).
+#' Contains probe information including chromosome, location on chromosome, 
+#' position relative to CpG islands, and genetic variants under the probe.
+#' Used in methylModes Shiny app to allow analysis on a subset of data.
+#' Original manifest downloaded from \href{https://support.illumina.com/downloads/infinium_humanmethylation450_product_files.html}{Illumina Support}
 #' 
 #' @format A data.table with 485,577 rows and 6 columns:
 #' \describe{
@@ -18,8 +21,11 @@
 
 #' Illumina EPIC Manifest Data
 #' 
-#' Annotation data for Illumina HumanMethylationEPIC BeadChip array.
-#' Contains probe information including chromosome, position, and CpG island relations.
+#' Annotation data for Illumina HumanMethylationEPIC BeadChip array (v1.0).
+#' Contains probe information including chromosome, location on chromosome, 
+#' position relative to CpG islands, and genetic variants under the probe.
+#' Used in methylModes Shiny app to allow analysis on a subset of data.
+#' Original manifest downloaded from \href{https://support.illumina.com/downloads/infinium-methylationepic-v1-0-product-files.html}{Illumina Support}.
 #' 
 #' @format A data.table with 865,919 rows and 7 columns:
 #' \describe{
@@ -35,10 +41,12 @@
 #' @source Illumina HumanMethylationEPIC BeadChip annotation
 "IlluminaManifestEPIC"
 
-#' Random Test Data for methylModes
+#' Toy Data for methylModes
 #' 
-#' A dataset containing randomly generated DNA methylation beta values
-#' that mimic real methylation data. Generated using a Gaussian mixture model.
+#' A dataset containing randomly generated multimodal distributions. 
+#' Rather than being designed to mimic DNA methylation betas distributions,
+#' this data is intended to verify functionality of the Shiny app.
+#' Generated using a Gaussian mixture model.
 #' 
 #' @format A matrix with 500 rows and 800 columns:
 #' \describe{
