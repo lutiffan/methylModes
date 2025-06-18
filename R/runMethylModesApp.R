@@ -7,8 +7,6 @@
 #' 
 #' @param launch.browser Logical. If TRUE (default), the app will open in the 
 #'   default web browser.
-#' @param port Integer. The port on which the app should run (default: 3838).
-#' @param host Character. The host address (default: "127.0.0.1").
 #' 
 #' @return Launches a Shiny application in the user's default web browser.
 #' 

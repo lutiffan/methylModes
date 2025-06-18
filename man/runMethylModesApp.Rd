@@ -4,15 +4,11 @@
 \alias{runMethylModesApp}
 \title{Launch the methylModes Shiny Application}
 \usage{
-runMethylModesApp(launch.browser = TRUE, port = 3838, host = "127.0.0.1")
+runMethylModesApp(launch.browser = TRUE)
 }
 \arguments{
 \item{launch.browser}{Logical. If TRUE (default), the app will open in the
 default web browser.}
-
-\item{port}{Integer. The port on which the app should run (default: 3838).}
-
-\item{host}{Character. The host address (default: "127.0.0.1").}
 }
 \value{
 Launches a Shiny application in the user's default web browser.

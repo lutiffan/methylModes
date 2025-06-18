@@ -446,8 +446,24 @@ function(input, output) {
   
   # Reactive expression that responds to file upload
   getUploadedPeakSummary <- reactive({
+
     req(input$peakSummaryFile$datapath) # Ensure the file is uploaded
-    peakSummary <- fread(input$peakSummaryFile$datapath)
+    
+    fileType <- tools::file_ext(input$peakSummaryFile$datapath)
+    
+    if (fileType %in% c("RDS", "rds")) {
+      peakSummary <- readRDS(input$peakSummaryFile$datapath) 
+    } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
+      peakSummary <- fread(input$peakSummaryFile$datapath)
+    } else if (fileType %in% c("RDA", "rda")) {
+      objname <- load(input$peakSummaryFile$datapath)
+      peakSummary <- get(objname)
+    } else if (fileType == "qs") {
+      peakSummary <- qread(file = input$peakSummaryFile$datapath)
+    } else {
+      warning("Invalid file type.")
+    }
+    
     peakSummary <- peakSummary[order(peakSummary$probeName),]
     shinyjs::reset("runMultiProbe")
     

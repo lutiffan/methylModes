@@ -3,9 +3,22 @@ Type: Package
 Title: Computationally Efficient Detection of Multi-Modal Distributions in DNA Methylation Data
 Version: 1.0
 Date: 2025-06-16
-Author: T. Sophia Luo
+Authors@R: c(
+    person(given = "T. Sophia", family = "Luo", email = "lutiffan@umich.edu", role = c("aut", "cre"),
+    comment = c(ORCID = "0009-0002-5451-4827")),
+    person("Jonathon", "LeFaive", role = "aut"),
+    person("John", "Dou", role = "aut"),
+    person("Kelly M.", "Bakulski", role = "aut"),
+    person("Erin B.", "Ware", role = "aut"),
+    person("Matthew", "Zawistowski", role = "aut")
+    )
 Maintainer: T. Sophia Luo <lutiffan@umich.edu>
-Description: Identification of CpG sites with multimodal DNA methylation distributions, which can be caused by biological variation or technical artifacts, is an important quality control step when analyzing whole genome methylation data. MethylModes is a computationally efficient, peak detection algorithm implemented in a Shiny application and easily incorporated into existing analytic pipelines for large-scale epigenetic studies.
+Description: Identification of CpG sites with multimodal DNA methylation 
+  distributions, which can be caused by biological variation or technical 
+  artifacts, is an important quality control step when analyzing whole genome 
+  methylation data. MethylModes is a computationally efficient, peak detection 
+  algorithm implemented in a Shiny application and easily incorporated into 
+  existing analytic pipelines for large-scale epigenetic studies.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -39,10 +52,6 @@ Suggests:
     rmarkdown (>= 2.29),
     MASS (>= 7.3.64)
 VignetteBuilder: knitr
-Authors@R: c(
-    person("T. Sophia", "Luo",
-           comment = c(ORCID = "0009-0002-5451-4827"))
-  )
 Depends: 
     R (>= 3.5)
 LazyData: true
