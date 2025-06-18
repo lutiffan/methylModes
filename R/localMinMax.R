@@ -46,7 +46,7 @@
 #'       "(x =", round(x[peaks$maximaIdx[i]], 3), ")\n")
 #' }
 #' 
-#' @export
+
 localMinMax <- function(fitted, zeroThreshold = 1e-6) {
   
   fitted <- ifelse(fitted < zeroThreshold, 0, fitted)

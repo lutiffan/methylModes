@@ -1,8 +1,8 @@
-#' Generate Random Test Data for methylModes
+#' Generate Toy Data for methylModes
 #' 
-#' This script generates a large random dataset that mimics DNA methylation beta values.
+#' This script generates a random data set of multimodal data.
 #' The data is generated using a Gaussian mixture model with 1-3 components per row.
-#' The resulting data is saved as largeRandomTestData.csv in the data/ directory.
+#' The resulting data is saved as toyMultimodalData.csv in the data/ directory.
 #' 
 #' @details
 #' The data generation process:
@@ -12,12 +12,12 @@
 #' - Row names are "test1" through "test500"
 #' - Column names are "subject1" through "subject800"
 #' 
-#' @seealso \code{\link{largeRandomTestData}}
+#' @seealso \code{\link{toyMultimodalData}}
 #' 
 #' @examples
 #' \dontrun{
 #' # Run this script to generate test data
-#' source("inst/generateLargeRandomData.R")
+#' source("inst/generateToyMultimodalData.R")
 #' }
 # Load necessary library
 library(MASS)  # For mvrnorm function to generate multivariate normal distributions
@@ -69,14 +69,14 @@ colnames(gaussian_mixture_matrix) <- paste0("subject", 1:num_cols)
 # Save the data to the package's data directory
 # Use usethis::use_data() to properly save data for the package
 if (requireNamespace("usethis", quietly = TRUE)) {
-  largeRandomTestData <- gaussian_mixture_matrix
-  usethis::use_data(largeRandomTestData, overwrite = TRUE)
-  cat("Data saved to data/largeRandomTestData.rda\n")
+  toyMultimodalData <- gaussian_mixture_matrix
+  usethis::use_data(toyMultimodalData, overwrite = TRUE)
+  cat("Data saved to data/toyMultimodalData.rda\n")
 } else {
   # Fallback: save as CSV in current directory
-  write.table(gaussian_mixture_matrix, "largeRandomTestData.csv", row.names = TRUE)
-  cat("Data saved to largeRandomTestData.csv (usethis package not available)\n")
+  write.table(gaussian_mixture_matrix, "toyMultimodalData.csv", row.names = TRUE)
+  cat("Data saved to toyMultimodalData.csv (usethis package not available)\n")
 }
 
 # Example of how to read the data back:
-# test <- read.table("largeRandomTestData.csv", header = TRUE, row.names = 1)
+# test <- read.table("toyMultimodalData.csv", header = TRUE, row.names = 1)

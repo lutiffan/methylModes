@@ -20,7 +20,7 @@
 #' \itemize{
 #'   \item \code{\link{IlluminaManifest450k}}: 450k array annotation data
 #'   \item \code{\link{IlluminaManifestEPIC}}: EPIC array annotation data
-#'   \item \code{\link{largeRandomTestData}}: Test dataset for examples
+#'   \item \code{\link{toyMultimodalData}}: Test dataset for examples
 #' }
 #' 
 #' @section Shiny Application:

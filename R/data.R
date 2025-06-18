@@ -55,5 +55,5 @@
 #'   \item{values}{Beta values between 0 and 1}
 #' }
 #' 
-#' @source Generated using \code{inst/generateLargeRandomData.R}
-"largeRandomTestData" 
+#' @source Generated using \code{inst/generateToyMultimodalData.R}
+"toyMultimodalData" 
