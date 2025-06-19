@@ -36,7 +36,7 @@ component_probs <- c(0.9, 0.09, 0.01)
 generate_gaussian_mixture_row <- function(num_cols) {
   # Randomly draw the number of components based on the given probabilities
   num_components <- sample(1:3, size = 1, prob = component_probs)
-  
+  if (num_components == 3) print(1)
   # Initialize the row with zeros
   row <- numeric(num_cols)
   

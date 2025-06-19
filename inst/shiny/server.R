@@ -15,7 +15,9 @@ function(input, output) {
     if (fileType %in% c("RDS", "rds")) {
       betas <- readRDS(input$betaFile$datapath) 
     } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
-      betas <-as.matrix(fread(input$betaFile$datapath), rownames = 1)
+      warning("Converting to matrix format. 
+              Interpreting first column as row names.")
+      betas <- as.matrix(fread(input$betaFile$datapath), rownames = 1)
     } else if (fileType %in% c("RDA", "rda")) {
       objname <- load(input$betaFile$datapath)
       betas <- get(objname)
@@ -23,6 +25,11 @@ function(input, output) {
       betas <- qread(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
+    }
+    
+    if(!is.matrix(betas)) {
+      warning("Converting data to matrix format.")
+      betas <- as.matrix(betas, rownames = 1)
     }
 
     # Sort beta matrix (important for matching with annotation data)
@@ -463,13 +470,29 @@ function(input, output) {
     } else {
       warning("Invalid file type.")
     }
-    
+
     peakSummary <- peakSummary[order(peakSummary$probeName),]
     shinyjs::reset("runMultiProbe")
     
     # Users need to restart the app if they want to run a new analysis after uploading past results
     shinyjs::disable("runMultiProbe")
     shinyjs::disable("region")
+    
+    # Check for threshold columns in uploaded results
+    existingLowVarCols <- grep("^lowVariance_", colnames(peakSummary), value = TRUE)
+    existingHypoCols <- grep("^hypoMethylated_", colnames(peakSummary), value = TRUE)
+    existingHyperCols <- grep("^hyperMethylated_", colnames(peakSummary), value = TRUE)
+
+    if (length(existingLowVarCols) > 0 && length(existingHypoCols) > 0 && length(existingHyperCols) > 0) {
+      # Extract thresholds from column names
+      uploadedVarianceThreshold <- sub("^lowVariance_", "", existingLowVarCols[1])
+      uploadedHypoThreshold <- sub("^hypoMethylated_", "", existingHypoCols[1])
+      uploadedHyperThreshold <- sub("^hyperMethylated_", "", existingHyperCols[1])
+
+    } else {
+      # If columns are missing, add them for the current thresholds
+      peakSummary <- peakSummaryPostProcessing(peakSummary, input$varianceThreshold, input$hypoThreshold, input$hyperThreshold)
+    }
     
     peakSummary
   })
@@ -487,6 +510,28 @@ function(input, output) {
     }
   })
   
+peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThreshold, hyperThreshold) {
+  # Create dynamic column names
+  lowVarCol <- paste0("lowVariance_", varianceThreshold)
+  hypoCol <- paste0("hypoMethylated_", hypoThreshold)
+  hyperCol <- paste0("hyperMethylated_", hyperThreshold)
+
+  # Calculate values
+  lowVariance <- ifelse(
+    peakSummary$numPeaks > 1,
+    NA,
+    unlist(peakSummary$peakVariance) < varianceThreshold
+  )
+  hypoMethylated <- unlist(peakSummary$meanBeta) < hypoThreshold
+  hyperMethylated <- unlist(peakSummary$meanBeta) > hyperThreshold 
+
+  # Assign with dynamic names
+  peakSummary[, (lowVarCol) := lowVariance]
+  peakSummary[, (hypoCol) := hypoMethylated]
+  peakSummary[, (hyperCol) := hyperMethylated]
+  peakSummary
+}
+
   ##### Beta matrix-level analysis #####
   getMultiProbeSummary <- eventReactive(input$runMultiProbe, {
     betas <- getBetas()
@@ -533,24 +578,7 @@ function(input, output) {
     # Sort results by number of detected peaks, descending
     # peakSummary <- peakSummary[order(peakSummary$numPeaks, decreasing = TRUE),]
 
-    # Label invariant and hypo/hypermethylated CpG sites
-    lowVariance <- logical(nrow(peakSummary))
-    for (i in 1:nrow(peakSummary)) {
-      if (peakSummary$numPeaks[i] > 1) {
-        lowVariance[i] <- NA
-      } else {
-        lowVariance[i] <- peakSummary$peakVariance[i] < input$varianceThreshold
-      }
-    }
-    
-    hypoMethylated <- unlist(peakSummary$meanBeta) < input$hypoThreshold
-    hyperMethylated <- unlist(peakSummary$meanBeta) > input$hyperThreshold
-    
-    peakSummary[, lowVariance := lowVariance]
-    peakSummary[, hypoMethylated := hypoMethylated]
-    peakSummary[, hyperMethylated := hyperMethylated]
-
-    return(peakSummary)
+    peakSummaryPostProcessing(peakSummary, input$varianceThreshold, input$hypoThreshold, input$hyperThreshold)
   })
   
   observeEvent(input$runMultiProbe, {
@@ -606,27 +634,41 @@ function(input, output) {
     peakSummary <- selectedPeakSummary()
 
     if (is.null(peakSummary)) return()
-    
-    varianceString = paste0(sum(peakSummary$lowVariance, na.rm = TRUE),
-                            " (",
-                            round(mean(peakSummary$lowVariance, na.rm = TRUE), 2) * 100,
-                            "%)")
-    hypoMethString = paste0(sum(peakSummary$hypoMethylated),
-                            " (",
-                            round(mean(peakSummary$hypoMethylated), 2) * 100,
-                            "%)")
-    hyperMethString = paste0(sum(peakSummary$hyperMethylated),
-                             " (",
-                             round(mean(peakSummary$hyperMethylated), 2) * 100,
-                             "%)")
-    
-    
-    results <- data.frame("Low Variance" = varianceString,
-               "Hypomethylated" = hypoMethString,
-               "Hypermethylated" = hyperMethString)
 
-    colnames(results)[1] <- "Low-Variance"
-    
+    # Find the actual columns present in the data
+    lowVarCol <- grep("^lowVariance_", colnames(peakSummary), value = TRUE)
+    hypoCol <- grep("^hypoMethylated_", colnames(peakSummary), value = TRUE)
+    hyperCol <- grep("^hyperMethylated_", colnames(peakSummary), value = TRUE)
+
+    # Extract thresholds from column names
+    extract_threshold <- function(colname, prefix) sub(paste0("^", prefix, "_"), "", colname)
+    varianceThreshold <- if (length(lowVarCol)) extract_threshold(lowVarCol[1], "lowVariance") else NA
+    hypoThreshold <- if (length(hypoCol)) extract_threshold(hypoCol[1], "hypoMethylated") else NA
+    hyperThreshold <- if (length(hyperCol)) extract_threshold(hyperCol[1], "hyperMethylated") else NA
+
+    # Use the found columns for summary
+    varianceString = if (length(lowVarCol)) paste0(sum(peakSummary[[lowVarCol]], na.rm = TRUE),
+                                                 " (",
+                                                 round(mean(peakSummary[[lowVarCol]], na.rm = TRUE), 2) * 100,
+                                                 "%)") else "N/A"
+    hypoMethString = if (length(hypoCol)) paste0(sum(peakSummary[[hypoCol]]),
+                                               " (",
+                                               round(mean(peakSummary[[hypoCol]]), 2) * 100,
+                                               "%)") else "N/A"
+    hyperMethString = if (length(hyperCol)) paste0(sum(peakSummary[[hyperCol]]),
+                                                 " (",
+                                                 round(mean(peakSummary[[hyperCol]]), 2) * 100,
+                                                 "%)") else "N/A"
+
+    # Set column names with thresholds
+    colnames_with_thresholds <- c(
+      paste0("Low-Variance (< ", varianceThreshold, ")"),
+      paste0("Hypomethylated (< ", hypoThreshold, ")"),
+      paste0("Hypermethylated (> ", hyperThreshold, ")")
+    )
+
+    results <- data.frame(varianceString, hypoMethString, hyperMethString)
+    colnames(results) <- colnames_with_thresholds
     results
   })
   
@@ -667,28 +709,44 @@ function(input, output) {
     peakSummary <- selectedPeakSummary()
     if (is.null(peakSummary)) return()
     
-    listToString <- function(listData, decimalPlaces) {
-      paste(as.character(round(unlist(listData), decimalPlaces)), collapse = ", ")
+    listToString <- function(listData, decimalPlaces = 2) {
+      paste(format(round(unlist(listData), decimalPlaces), nsmall = 2), collapse = ", ")
     }
-
-    if (is.list(peakSummary$peakLocations)) {
+    
+    unpackExcelColumn <- function(listData, decimalPlaces = 2) {
+      paste(format(round(as.numeric(unlist(strsplit(listData, 
+                                                    split = "[|]"))), 
+                         decimalPlaces), 
+                   nsmall = 2), 
+            collapse = ", ")
+    }
+    browser()
+    if (is.list(peakSummary$peakLocations)) { # After running methylModesBatch
 
       peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations, 
                                                     FUN = listToString,
                                                     decimalPlaces = 2))
       proportionSamplePreviewFriendly <- unlist(lapply(peakSummary$proportionSample, 
                                                        FUN = listToString,
-                                                       decimalPlaces = 3))
+                                                       decimalPlaces = 2))
       peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance, 
                                                    FUN = listToString,
                                                    decimalPlaces = 6))
-    } else {
-
-      peakLocationsPreviewFriendly <- strsplit(peakSummary$peakLocations, split = "[|]")
-      
-      proportionSamplePreviewFriendly <- strsplit(peakSummary$proportionSample, split = "[|]")
-      
-      peakVariancePreviewFriendly <- strsplit(peakSummary$peakVariance, split = "[|]")
+    } else { # When you've read in existing results
+      peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations,
+                                                    FUN = unpackExcelColumn,
+                                                    decimalPlaces = 2))
+      proportionSamplePreviewFriendly <- unlist(lapply(peakSummary$proportionSample,
+                                                       FUN = unpackExcelColumn,
+                                                       decimalPlaces = 2))
+      peakVariancePreviewFriendly <- unlist(lapply(peakSummary$peakVariance,
+                                                   FUN = unpackExcelColumn,
+                                                   decimalPlaces = 6))
+      # peakLocationsPreviewFriendly <- round(as.numeric(unlist(strsplit(peakSummary$peakLocations, split = "[|]"))), 2)
+      # 
+      # proportionSamplePreviewFriendly <- round(as.numeric(unlist(strsplit(peakSummary$proportionSample, split = "[|]"))), 2)
+      # 
+      # peakVariancePreviewFriendly <- round(as.numeric(unlist(strsplit(peakSummary$peakVariance, split = "[|]"))), 6)
     }
     
     datatable(data.table("probeName" = peakSummary$probeName,
@@ -998,3 +1056,4 @@ function(input, output) {
     datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
   })
 }
+
