@@ -47,6 +47,8 @@
 #' Contains probe information including chromosome, location on chromosome, 
 #' position relative to CpG islands, and genetic variants under the probe.
 #' Used in methylModes Shiny app to allow analysis on a subset of data.
+#' SNP_DISTANCE and SNP_MinorAlleleFrequency are ommited in this copy
+#' of the manifest due to file size constraints.
 #' Original manifest downloaded from \href{https://support.illumina.com/downloads/infinium-methylationepic-v2-0-product-files.html}{Illumina Support}.
 #' 
 #' @format A data.table with 926,371 rows and 7 columns:
@@ -56,8 +58,6 @@
 #'   \item{Relation_to_UCSC_CpG_Island}{Relation to nearest CpG island (Island, N_Shore, S_Shore, etc.)}
 #'   \item{MAPINFO}{Base pair position}
 #'   \item{SNP_ID}{RSID of SNPs under the probe}
-#'   \item{SNP_DISTANCE}{Distance from CpG to SNPs under the probe}
-#'   \item{SNP_MinorAlleleFrequency}{MAF of SNPs under the probe}
 #' }
 #' 
 #' @source Illumina HumanMethylationEPIC v2 BeadChip annotation

@@ -3,6 +3,8 @@
 
 fluidPage(theme = shinythemes::shinytheme("cerulean"), 
   shinyjs::useShinyjs(), # Gives us tricks like disabling an element until condition satisfied
+  # Add shinybusy for loading animations
+  shinybusy::add_busy_spinner(spin = "fading-circle", color = "#007996", timeout = 1000),
   navbarPage("MethylModes",
              tabPanel("Get Started",
                       sidebarPanel(
