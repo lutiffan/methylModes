@@ -6,10 +6,10 @@
 #' 
 #' @details
 #' The data generation process:
-#' - Creates a 500x800 matrix
+#' - Creates a 10000x800 matrix
 #' - Each row has 1-3 Gaussian components (90% single, 9% double, 1% triple)
 #' - Values are constrained to [0,1] to mimic beta values
-#' - Row names are "test1" through "test500"
+#' - Row names are "test1" through "test10000"
 #' - Column names are "subject1" through "subject800"
 #' 
 #' @seealso \code{\link{toyMultimodalData}}
@@ -26,7 +26,7 @@ library(MASS)  # For mvrnorm function to generate multivariate normal distributi
 set.seed(123)
 
 # Define the dimensions
-num_rows <- 500
+num_rows <- 10000
 num_cols <- 800
 
 # Define the probabilities for the number of components
@@ -36,7 +36,7 @@ component_probs <- c(0.9, 0.09, 0.01)
 generate_gaussian_mixture_row <- function(num_cols) {
   # Randomly draw the number of components based on the given probabilities
   num_components <- sample(1:3, size = 1, prob = component_probs)
-  if (num_components == 3) print(1)
+
   # Initialize the row with zeros
   row <- numeric(num_cols)
   
@@ -61,9 +61,10 @@ generate_gaussian_mixture_row <- function(num_cols) {
   return(row)
 }
 
+data("IlluminaManifest450k", package = "methylModes", envir = environment())
 # Generate the matrix
 gaussian_mixture_matrix <- t(replicate(num_rows, generate_gaussian_mixture_row(num_cols)))
-rownames(gaussian_mixture_matrix) <- paste0("test", 1:num_rows)
+rownames(gaussian_mixture_matrix) <- IlluminaManifest450k$IlmnID[1:num_rows]
 colnames(gaussian_mixture_matrix) <- paste0("subject", 1:num_cols)
 
 # Save the data to the package's data directory

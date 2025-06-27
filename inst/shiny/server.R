@@ -49,29 +49,7 @@ function(input, output) {
     nProbe <- sum(betaFilter)
     h4(paste0("A total of ", nProbe, " probes were analyzed."))
   })
-  
-  # # Check whether annotation packages are already installed or not
-  # missing450kAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylation450kanno.ilmn12.hg19"))))
-  # missingEPICAnnotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))))
-  # missingEPICV2Annotation <- reactiveVal(suppressMessages(suppressWarnings(!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38"))))
-  # 
-  # output$missing450kAnnotation <- reactive({
-  #   missing450kAnnotation()
-  # })
-  # 
-  # outputOptions(output, "missing450kAnnotation", suspendWhenHidden = FALSE)
-  # 
-  # output$missingEPICAnnotation <- reactive({
-  #   missingEPICAnnotation()
-  # })
-  # 
-  # outputOptions(output, "missingEPICAnnotation", suspendWhenHidden = FALSE)
-  # 
-  # output$missingEPICV2Annotation <- reactive({
-  #   missingEPICV2Annotation()
-  # })
-  # 
-  # outputOptions(output, "missingEPICV2Annotation", suspendWhenHidden = FALSE)
+
   
   getAnnotationLocal <- reactive({
     if (is.null(input$arrayType)) return(NULL)
@@ -88,18 +66,12 @@ function(input, output) {
       data("IlluminaManifestEPIC", package = "methylModes", envir = environment())
       manifestFile <- IlluminaManifestEPIC
       
+    } else if (input$arrayType == "ilepic2") {
+      data("IlluminaManifestEPICv2", package = "methylModes", envir = environment())
+      manifestFile <- IlluminaManifestEPICv2
     } else {
       simpleError("Invalid annotation package selected.")
-    }
-    # TODO: get Epicv2 manifest data
-    # else if (input$arrayType == "ilepic2") {
-    #   if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
-    #     BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
-    #     missingEPICV2Annotation(FALSE)
-    #   }
-    #   
-    #   library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
-    # } 
+    } 
     
     
     # annotationData <- data.frame(Chromosome = 
@@ -662,9 +634,9 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
 
     # Set column names with thresholds
     colnames_with_thresholds <- c(
-      paste0("Low-Variance (< ", varianceThreshold, ")"),
-      paste0("Hypomethylated (< ", hypoThreshold, ")"),
-      paste0("Hypermethylated (> ", hyperThreshold, ")")
+      paste0("Low-Variance (Unimodal and variance < ", varianceThreshold, ")"),
+      paste0("Hypomethylated (Mean beta < ", hypoThreshold, ")"),
+      paste0("Hypermethylated (Mean beta > ", hyperThreshold, ")")
     )
 
     results <- data.frame(varianceString, hypoMethString, hyperMethString)
@@ -720,7 +692,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
                    nsmall = 2), 
             collapse = ", ")
     }
-    browser()
+
     if (is.list(peakSummary$peakLocations)) { # After running methylModesBatch
 
       peakLocationsPreviewFriendly <- unlist(lapply(peakSummary$peakLocations, 
@@ -765,7 +737,8 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
               options = list(columnDefs = list(
                 list(searchable = FALSE, targets = c(4, 5, 6)) 
               ),
-              order = list(list(2, 'desc')))
+              order = list(list(2, 'desc')),
+              server = TRUE)
     )
   })
   

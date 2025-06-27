@@ -189,25 +189,32 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                           h3("Multiple Probe Analysis"),
                           shinyjs::disabled(downloadButton("downloadPeakSummary",
                                                            "Download results")),
-                          conditionalPanel(
-                            condition = "output.tableCreatedResultSummary",
-                            uiOutput(outputId = "numProbesAnalyzed")
-                          ),
-                          tableOutput("modalityTable"),
-                          tableOutput("flaggedProbesTableCounts"),
-                          # tableOutput("flaggedProbesTableCounts2"),
-                          conditionalPanel(
-                            condition = "output.tableCreatedResultSummary",
-                            h4("Preview")
-                          ),
-                          checkboxInput("showDensityMultiProbe", 
-                                        label = "Display density estimate curve",
-                                        value = TRUE),
-                          checkboxInput("showMinimaMultiProbe",
-                                        label = "Display detected peak boundaries",
-                                        value = FALSE),
-                          plotly::plotlyOutput("probeVisualFromPeakSummary"),
-                          DT::dataTableOutput("peakSummaryTable")
+                          shinycssloaders::withSpinner(
+                            div(
+                              conditionalPanel(
+                                condition = "output.tableCreatedResultSummary",
+                                uiOutput(outputId = "numProbesAnalyzed")
+                              ),
+                              tableOutput("modalityTable"),
+                              tableOutput("flaggedProbesTableCounts"),
+                              # tableOutput("flaggedProbesTableCounts2"),
+                              conditionalPanel(
+                                condition = "output.tableCreatedResultSummary",
+                                h4("Preview")
+                              ),
+                              checkboxInput("showDensityMultiProbe", 
+                                            label = "Display density estimate curve",
+                                            value = TRUE),
+                              checkboxInput("showMinimaMultiProbe",
+                                            label = "Display detected peak boundaries",
+                                            value = FALSE),
+                              plotly::plotlyOutput("probeVisualFromPeakSummary"),
+                              DT::dataTableOutput("peakSummaryTable")
+                            ),
+                            type = 8,
+                            color = "#007996",
+                            size = 2
+                          )
                         )
                         )
                       ), 

@@ -9,6 +9,9 @@ library(DT)
 library(parallelly)
 library(foreach)
 library(iterators)
+library(shinyjs)
+library(shinycssloaders)
+library(shinybusy)
 
 # Load configuration values
 source(system.file("shiny", "config.R", package = "methylModes"))
