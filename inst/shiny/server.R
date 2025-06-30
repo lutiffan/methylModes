@@ -73,78 +73,29 @@ function(input, output) {
       simpleError("Invalid annotation package selected.")
     } 
     
-    
-    # annotationData <- data.frame(Chromosome = 
-    #                                sub("chr", "", Locations[rownames(betas), "chr"]),
-    #                              Island = Islands.UCSC[rownames(betas), 
-    #                                                    "Relation_to_Island"],
-    #                              Position = Locations[rownames(betas), "pos"])
-    
     # Keep only rows corresponding to probes that we have
     manifestFile <- manifestFile[manifestFile$IlmnID %in% rownames(betas),]
     # Now sort the probes in order of name
     manifestFile <- manifestFile[order(manifestFile$IlmnID),]
-    
+
     annotationData <- data.frame(Chromosome = manifestFile$CHR,
                                  Island = manifestFile$Relation_to_UCSC_CpG_Island,
-                                 Position = manifestFile$MAPINFO)
+                                 Position = manifestFile$MAPINFO,
+                                 IlmnID = manifestFile$IlmnID)
     
     if (input$arrayType == "il450k") {
       annotationData$SNP_within_10Bp <- manifestFile$Probe_SNPs_10
       annotationData$SNP_10Bp_and_beyond <- manifestFile$Probe_SNPs
-    } else if (input$arrayType == "ilepic1") {
-      annotationData$SNP_distance <- manifestFile$SNP_DISTANCE
-    }
+    } else { # if (input$arrayType == "ilepic1") {
+      annotationData$snpDistance0_1 <- manifestFile$snpDistance0_1
+      annotationData$snpDistance2_10 <- manifestFile$snpDistance2_10
+      annotationData$snpDistance11_50 <- manifestFile$snpDistance11_50
+    } 
     
     # Replace empty strings in Island column with "OpenSea"
     annotationData$Island[annotationData$Island == ""] <- "OpenSea"
     annotationData
   })
-  
-  # getAnnotation <- reactive({
-  #   if (is.null(input$arrayType)) return(NULL)
-  #   betas <- getBetas()
-  #   if (is.null(betas)) return(NULL)
-  #   
-  #   if (input$arrayType == "il450k") {
-  #     if (!require("IlluminaHumanMethylation450kanno.ilmn12.hg19")) {
-  #       BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
-  #       missing450kAnnotation(FALSE)
-  #     }
-  #     
-  #     library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-  # 
-  #   } else if (input$arrayType == "ilepic1") {
-  #     if (!require("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")) {
-  #       BiocManager::install("IlluminaHumanMethylationEPICanno.ilm10b4.hg19")
-  #       missingEPICAnnotation(FALSE)
-  #     }
-  #     
-  #     # library(IlluminaHumanMethylationEPICanno.ilm10b2.hg19)
-  #     # I think this one is more up-to-date
-  #     library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
-  #     
-  #   } 
-  #   # else if (input$arrayType == "ilepic2") {
-  #   #   if (!require("IlluminaHumanMethylationEPICv2anno.20a1.hg38")) {
-  #   #     BiocManager::install("IlluminaHumanMethylationEPICv2anno.20a1.hg38")
-  #   #     missingEPICV2Annotation(FALSE)
-  #   #   }
-  #   #   
-  #   #   library(IlluminaHumanMethylationEPICv2anno.20a1.hg38)
-  #   # } 
-  #   else {
-  #     simpleError("Invalid annotation package selected.")
-  #   }
-  # 
-  #   annotationData <- data.frame(Chromosome = 
-  #                                  sub("chr", "", Locations[rownames(betas), "chr"]),
-  #                                Island = Islands.UCSC[rownames(betas), 
-  #                                                      "Relation_to_Island"],
-  #                                Position = Locations[rownames(betas), "pos"])
-  # 
-  #   annotationData
-  # })
   
   # Will set to TRUE when probe-average plot on "get started" page is created
   plotCreatedBetaOverview <- reactiveVal(FALSE)
@@ -501,6 +452,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
   peakSummary[, (lowVarCol) := lowVariance]
   peakSummary[, (hypoCol) := hypoMethylated]
   peakSummary[, (hyperCol) := hyperMethylated]
+  
   peakSummary
 }
 
@@ -859,10 +811,38 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
   # Define a download handler
   output$downloadPeakSummary <- downloadHandler(
     filename = function() {
-      paste("peakSummary", Sys.Date(), ".csv", sep = "")
+      paste("methylModes_PS_", 
+            gsub("\\.", "_", input$proportionSample), "_", 
+            "PD_",
+            gsub("\\.", "_", input$peakDistance), "_",
+            "VT_",
+            gsub("\\.", "_", input$varianceThreshold), "_",
+            "HT_",
+            gsub("\\.", "_", input$hyperThreshold), "_",
+            Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      fwrite(getMultiProbeSummary(), file)
+      # Get the peak summary data
+      peakSummary <- getMultiProbeSummary()
+      
+      # Add annotation info columns if available
+      annotationData <- getAnnotationLocal()
+      if (!is.null(annotationData)) {
+        # Convert to data.table for consistent operations
+        peakSummary <- as.data.table(peakSummary)
+        annotationData <- as.data.table(annotationData)
+        
+        # Select only the columns we need
+        annotationSubset <- annotationData[, .(IlmnID, Island)]
+        
+        # Use data.table merge instead of dplyr left_join
+        peakSummary <- merge(peakSummary, annotationSubset, 
+                            by.x = "probeName", by.y = "IlmnID", 
+                            all.x = TRUE)
+      }
+      
+      # Write to file - fwrite should handle list columns automatically
+      fwrite(peakSummary, file)
     }
   )
   
@@ -914,7 +894,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
   output$basePairRangeSelect <- renderUI({
     req(basePairMinMax())
 
-    numericRangeInput("selectedBasePairRange", 
+    shinyWidgets::numericRangeInput("selectedBasePairRange", 
                       "Enter CpG location range",
                       value = c(basePairMinMax()$bpMin, basePairMinMax()$bpMax),
                       min = basePairMinMax()$bpMin,
@@ -980,7 +960,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
     annotationData <- getAnnotationLocal()
 
     peakCounts <- sort(unique(peakSummary$numPeaks))
-    
+
     # Apply betaFilter to ensure matching data lengths
     filter <- betaFilter()
     annotationData <- annotationData[filter,]
@@ -988,36 +968,47 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
     if (input$arrayType == "il450k") {
       snpClose <- numeric(length(peakCounts))
       snpFar <- numeric(length(peakCounts))
-      
+
       for (i in seq_along(peakCounts)) {
-        snpClose[i] <- sum(peakSummary$numPeaks == peakCounts[i] 
+        snpClose[i] <- sum(peakSummary$numPeaks == peakCounts[i]
                            & annotationData$SNP_within_10Bp != "")
-        snpFar[i] <- sum(peakSummary$numPeaks == peakCounts[i] 
+        snpFar[i] <- sum(peakSummary$numPeaks == peakCounts[i]
                          & annotationData$SNP_10Bp_and_beyond != "")
       }
+      
+      crossTab <- data.frame(`Number of Modes` = peakCounts,
+                             `SNP within 10 bp` = snpClose,
+                             `SNP in 10-50 bp` = snpFar)
+      colnames(crossTab) <- c("Number of Modes",
+                              "SNP within 10 bp",
+                              "SNP in 10-50 bp")
 
-      return(datatable(data.frame(`Number of Modes` = peakCounts,
-                                      `SNP within 10 bp` = snpClose,
-                                      `SNP in 10-50 bp` = snpFar),
-                           rownames = FALSE))
-      
-    } else if (input$arrayType == "ilepic1") {
-      annotationData <- annotationData %>%
-        mutate(SNP_distance_bin = cut(SNP_distance, breaks = c(0, 1, 10, 50), labels = c("1", "2-10", "11-50")))
-      
-      subset <- which(!is.na(annotationData$SNP_distance_bin))
-      dataSubset <- peakSummary[subset, ]
-      
-      crossTab <- table(
-        `Number of Modes Detected` = dataSubset$numPeaks,
-        `SNP Distance Bin` = annotationData$SNP_distance_bin[subset]
-      )
+    } else { # if (input$arrayType == "ilepic1") {
+      snp1_10 <- numeric(length(peakCounts))
+      snp2_10 <- numeric(length(peakCounts))
+      snp11_50 <- numeric(length(peakCounts))
+
+      for (i in seq_along(peakCounts)) {
+        snp1_10[i] <- sum(annotationData$snpDistance0_1[peakSummary$numPeaks == peakCounts[i]], na.rm = T)
+        snp2_10[i] <- sum(annotationData$snpDistance2_10[peakSummary$numPeaks == peakCounts[i]], na.rm = T)
+        snp11_50[i] <- sum(annotationData$snpDistance11_50[peakSummary$numPeaks == peakCounts[i]], na.rm = T)
+      }
+
+      crossTab <- data.frame(`Number of Modes` = peakCounts,
+                             `SNP at or neighboring CpG site` = snp1_10,
+                             `SNP between 2-10 bp from CpG` = snp2_10,
+                             `SNP between 11-50 bp from CpG` = snp11_50)
+      colnames(crossTab) <- c("Number of Modes", 
+                              "SNP at or neighboring CpG site", 
+                              "SNP between 2-10 bp from CpG", 
+                              "SNP between 11-50 bp from CpG")
     }
-    
-    datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
+    datatable(crossTab,
+              rownames = FALSE,
+              escape = FALSE)
   })
   
-  # Cross-tabulate for multimodal tables (Relation to CpG island)
+  # Cross-tabulate for multimodal tables (hypo- and hypermethylation status)
   output$tableMultimodalCpG <- renderDataTable({
     req(selectedPeakSummary())
     peakSummary <- selectedPeakSummary()

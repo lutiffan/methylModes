@@ -12,6 +12,7 @@ library(iterators)
 library(shinyjs)
 library(shinycssloaders)
 library(shinybusy)
+library(shinyWidgets)
 
 # Load configuration values
 source(system.file("shiny", "config.R", package = "methylModes"))
