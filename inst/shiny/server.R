@@ -344,7 +344,7 @@ function(input, output) {
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
             axis.line = element_line(colour = "black")) +
-      geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3) +
+      geom_point(data = dataFrameForMaxima, aes(x = beta, y = density, color = "Maxima"), size = 3, alpha = 0.6) +
       scale_color_manual(
         name = "Legend",
         values = DENSITY_PLOT_COLORS
