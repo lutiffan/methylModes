@@ -46,6 +46,7 @@ Imports:
     doParallel (>= 1.0.17),
     progress (>= 1.2.3),
     doFuture (>= 1.0.1),
+    qs,
 Suggests:
     testthat (>= 3.2.2),
     knitr (>= 1.49),

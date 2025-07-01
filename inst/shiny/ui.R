@@ -83,7 +83,8 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                                              ".RDS", 
                                              ".RDA", 
                                              ".tsv", 
-                                             ".qs"))
+                                             ".qs")),
+                        helpText("Accepted file formats: .csv, .RDA")
                         ),
                         h4("Peak Detection Thresholds"),
                         numericInput(label = "ProportionSample",
