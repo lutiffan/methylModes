@@ -952,7 +952,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
     paste(nProbe, "probes selected.")
   })
   
-  # Cross-tabulate for multimodal tables (SNP under probe)
+  # Cross-tabulate multimodality (SNP under probe)
   output$tableMultimodalSNP <- renderDataTable({
     req(selectedPeakSummary())
     req(getAnnotationLocal())
@@ -963,7 +963,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
 
     # Apply betaFilter to ensure matching data lengths
     filter <- betaFilter()
-    annotationData <- annotationData[filter,]
+    annotationData <- annotationData[betaFilter(),]
 
     if (input$arrayType == "il450k") {
       snpClose <- numeric(length(peakCounts))
@@ -1008,7 +1008,7 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
               escape = FALSE)
   })
   
-  # Cross-tabulate for multimodal tables (hypo- and hypermethylation status)
+  # Cross-tabulate for multimodality (Relation to CpG island)
   output$tableMultimodalCpG <- renderDataTable({
     req(selectedPeakSummary())
     peakSummary <- selectedPeakSummary()
@@ -1017,6 +1017,79 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
     annotationData <- annotationData[betaFilter(),]
     
     crossTab <- table("Number of Modes Detected" = peakSummary$numPeaks, annotationData$Island)
+    datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
+  })
+
+  # Cross-tabulate hypo- and hypermethylation status (SNP under probe)
+  output$tableHypoHyperSNP <- renderDataTable({
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+    req(getAnnotationLocal())
+    annotationData <- getAnnotationLocal()
+    annotationData <- annotationData[betaFilter(),]
+
+    # Create a data table counting probes with hypo- and hypermethylation status along rows
+    # and SNP under probe along columns
+    if (input$arrayType == "il450k") {
+      snpClose <- numeric(2)
+      snpFar <- numeric(2)
+      snpClose[1] <- sum(peakSummary$hypoMethylated & annotationData$SNP_within_10Bp != "")
+      snpClose[2] <- sum(peakSummary$hyperMethylated & annotationData$SNP_within_10Bp != "")
+      snpFar[1] <- sum(peakSummary$hypoMethylated & annotationData$SNP_10Bp_and_beyond != "")
+      snpFar[2] <- sum(peakSummary$hyperMethylated & annotationData$SNP_10Bp_and_beyond != "")
+
+      crossTab <- data.frame(`status` = c("Hypo", "Hyper"),
+                             `SNP within 10 bp` = snpClose,
+                             `SNP in 10-50 bp` = snpFar)
+      colnames(crossTab) <- c("Hypo/hypermethylation",
+                              "SNP within 10 bp",
+                              "SNP in 10-50 bp")
+      
+    } else {
+      snp1_10 <- numeric(2)
+      snp2_10 <- numeric(2)
+      snp11_50 <- numeric(2)
+      snp1_10[1] <- sum(annotationData$snpDistance0_1[peakSummary$hypoMethylated], na.rm = T)
+      snp1_10[2] <- sum(annotationData$snpDistance0_1[peakSummary$hyperMethylated], na.rm = T)
+      snp2_10[1] <- sum(annotationData$snpDistance2_10[peakSummary$hypoMethylated], na.rm = T)
+      snp2_10[2] <- sum(annotationData$snpDistance2_10[peakSummary$hyperMethylated], na.rm = T)
+      snp11_50[1] <- sum(annotationData$snpDistance11_50[peakSummary$hypoMethylated], na.rm = T)
+      snp11_50[2] <- sum(annotationData$snpDistance11_50[peakSummary$hyperMethylated], na.rm = T)
+
+      crossTab <- data.frame(`status` = c("Hypo", "Hyper"),
+                             `SNP at or neighboring CpG site` = snp1_10,
+                             `SNP between 2-10 bp from CpG` = snp2_10,
+                             `SNP between 11-50 bp from CpG` = snp11_50)
+      colnames(crossTab) <- c("Hypo/hypermethylation",
+                              "SNP at or neighboring CpG site",
+                              "SNP between 2-10 bp from CpG",
+                              "SNP between 11-50 bp from CpG")
+    }
+    datatable(crossTab,
+              rownames = FALSE,
+              escape = FALSE)
+  })
+
+  # Cross-tabulate hypo- and hypermethylation status (Relation to CpG island)
+  output$tableHypoHyperCpG <- renderDataTable({
+    req(selectedPeakSummary())
+    peakSummary <- selectedPeakSummary()
+    req(getAnnotationLocal())
+    annotationData <- getAnnotationLocal()
+    annotationData <- annotationData[betaFilter(),]
+
+  # For every value of annotationData$Island, count the number of probes that are hypo- or hypermethylated
+  islandLabels <- unique(annotationData$Island)
+  hypo <- numeric(length(islandLabels))
+  hyper <- numeric(length(islandLabels))
+  for (i in seq_along(islandLabels)) {
+    hypo[i] <- sum(peakSummary$hypoMethylated & annotationData$Island == islandLabels[i], na.rm = T)
+    hyper[i] <- sum(peakSummary$hyperMethylated & annotationData$Island == islandLabels[i], na.rm = T)
+  }
+
+  crossTab <- matrix(c(hypo, hyper), nrow = 2, byrow = TRUE)
+  colnames(crossTab) <- islandLabels
+  rownames(crossTab) <- c("Hypo", "Hyper")
     datatable(as.data.frame.matrix(crossTab), rownames = TRUE)
   })
 }

@@ -249,13 +249,13 @@ fluidPage(theme = shinythemes::shinytheme("cerulean"),
                         ),
                         conditionalPanel(
                           condition = "input.crossTabCpgIsland.includes('SNP under probe')",
-                          h4("CpG Island: SNP under probe"),
-                          DT::dataTableOutput("tableCpgIslandSNP")
+                          h4("Hypo/hypermethylation: SNP under probe"),
+                          DT::dataTableOutput("tableHypoHyperSNP")
                         ),
                         conditionalPanel(
                           condition = "input.crossTabCpgIsland.includes('Relation to CpG island')",
-                          h4("CpG Island: Relation to CpG island"),
-                          DT::dataTableOutput("tableCpgIslandCpG")
+                          h4("Hypo/hypermethylation: Relation to CpG island"),
+                          DT::dataTableOutput("tableHypoHyperCpG")
                         )
                       )
                   )
