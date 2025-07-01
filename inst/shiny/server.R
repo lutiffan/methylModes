@@ -176,9 +176,7 @@ function(input, output) {
   })
   
   observeEvent(input$betaFile, {
-    if (!is.null(input$betaFile$datapath) & 
-        tools::file_ext(input$betaFile$datapath) %in% 
-        c("RDS", "rds", "csv", "TXT", "txt", "tsv", "RDA", "rda")) {
+    if (!is.null(input$betaFile$datapath)) {
       
       # Probe analysis inputs
       betas <- getBetas()
@@ -380,7 +378,7 @@ function(input, output) {
     req(input$peakSummaryFile$datapath) # Ensure the file is uploaded
     
     fileType <- tools::file_ext(input$peakSummaryFile$datapath)
-    
+
     if (fileType %in% c("RDS", "rds")) {
       peakSummary <- readRDS(input$peakSummaryFile$datapath) 
     } else if (fileType %in% c("csv", "TXT", "txt", "tsv")) {
