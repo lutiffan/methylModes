@@ -66,7 +66,7 @@ detected peaks for each probe.
 The function processes the data in parallel using the following steps:
 \enumerate{
 \item Creates a parallel cluster using available cores (minus one)
-\item Processes each probe in parallel using methylModes()
+\item Processes each probe in parallel using methylModes::methylModes()
 \item Combines results into a data.table
 \item Calculates additional statistics (mean, variance) for each peak
 }

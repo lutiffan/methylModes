@@ -4,7 +4,7 @@
 \alias{methylModes}
 \title{Detect Modes in DNA Methylation Data}
 \usage{
-methylModes(
+methylModes::methylModes(
   row.data = NULL,
   bandwidthType = NA,
   numBreaks = 500,
@@ -77,7 +77,7 @@ data <- c(rnorm(100, mean = 0.3, sd = 0.1),
 data <- pmax(0, pmin(1, data))  # Ensure values are between 0 and 1
 
 # Detect methylation modes
-result <- methylModes(data)
+result <- methylModes::methylModes(data)
 
 # Plot the results
 plot(result$probeDensityEst, main = "Density Estimation with Detected Peaks",

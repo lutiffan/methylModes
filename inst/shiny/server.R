@@ -31,7 +31,7 @@ function(input, output) {
       warning("Converting data to matrix format.")
       betas <- as.matrix(betas, rownames = 1)
     }
-
+    
     # Sort beta matrix (important for matching with annotation data)
     betas[order(rownames(betas)),]
   })
@@ -279,7 +279,7 @@ function(input, output) {
     probeId <- probeParams()$probeId
     rowId <- which(rownames(betas) == probeId)
 
-    methylModes(row.data = betas[rowId,],
+    methylModes::methylModes(row.data = betas[rowId,],
                 proportionSample = params$proportionSample,
                 peakDistance = params$peakDistance,
                 kernelType = params$kernelType,

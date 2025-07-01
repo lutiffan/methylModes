@@ -52,7 +52,7 @@
 #' data <- pmax(0, pmin(1, data))  # Ensure values are between 0 and 1
 #' 
 #' # Detect methylation modes
-#' result <- methylModes(data)
+#' result <- methylModes::methylModes(data)
 #' 
 #' # Plot the results
 #' plot(result$probeDensityEst, main = "Density Estimation with Detected Peaks",

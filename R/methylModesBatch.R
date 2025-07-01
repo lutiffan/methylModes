@@ -41,7 +41,7 @@
 #' The function processes the data in parallel using the following steps:
 #' \enumerate{
 #'   \item Creates a parallel cluster using available cores (minus one)
-#'   \item Processes each probe in parallel using methylModes()
+#'   \item Processes each probe in parallel using methylModes::methylModes()
 #'   \item Combines results into a data.table
 #'   \item Calculates additional statistics (mean, variance) for each peak
 #' }
@@ -107,7 +107,7 @@ methylModesBatch <- function(betas = NULL,
                                     
     # Steps 1-4: smooth histogram, detect local maxima/minima, filter by 
     # spacing, filter by sample %, detect presence of any "gaps"
-    foundPeaks <- methylModes(row.data = probe,
+    foundPeaks <- methylModes::methylModes(row.data = probe,
                               proportionSample = proportionSample,
                               peakDistance = peakDistance,
                               kernelType = kernelType,
