@@ -114,18 +114,18 @@ function(input, output) {
     probeMeans <- data.frame("Beta" = round(rowMeans(betas), 2))
     
     p <- ggplot(probeMeans, aes(Beta)) +
-      geom_histogram(aes(y = after_stat(density), fill = after_stat(x)), # Use x (Beta) to map to fill
+      geom_histogram(aes(y = after_stat(density)), 
                      binwidth = 1 / input$numHistogramBinsBetaOverview, 
-                     color = "black") + # Add a border color for clarity
-      geom_line(aes(y = after_stat(density)), stat = 'density', color = "black") + # Add density line
+                     color = "black", 
+                     fill = "#2FA4E7") +
+      geom_line(aes(y = after_stat(density)), stat = 'density', color = "black") +
       labs(title = "Mean Methylation Across Probes",
            x = "Beta",
            y = "Density") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
             panel.background = element_blank(), 
-            axis.line = element_line(colour = "black")) +
-      scale_fill_viridis_c() # Apply viridis color scale
+            axis.line = element_line(colour = "black"))
     
     # Enables display of slider bar
     plotCreatedBetaOverview(TRUE)
@@ -143,7 +143,7 @@ function(input, output) {
                                         levels = c(as.character(1:22), "X", "Y"))
     
     p <- ggplot(relevantLabels, aes(x = Chromosome)) +
-      geom_bar(color = "#155087", fill = "#007996") +  # Set the bar fill color to cerulean
+      geom_bar(color = "black", fill = "#2FA4E7") +  # Set the bar fill color to cerulean
       labs(title = "Probe Locations by Chromosome", x = "Chromosome", y = "Count") + 
       theme(panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),

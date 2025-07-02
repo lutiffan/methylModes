@@ -23,12 +23,12 @@ FIXED_NUM_BREAKS <- 500
 
 # Color schemes for plots
 ISLAND_COLORS <- c(
-  "Island" = "#FDE333",
-  "N_Shore" = "#C1DE35", 
-  "S_Shore" = "#00C376",
-  "N_Shelf" = "#008498",
+  "Island" = "#00C376",
+  "N_Shore" = "#f6fd33", 
+  "S_Shore" = "#f6fd33",
+  "N_Shelf" = "#006892",
   "S_Shelf" = "#006892",
-  "OpenSea" = "#363D7C"
+  "OpenSea" = "#155087"
 )
 
 DENSITY_PLOT_COLORS <- c(
