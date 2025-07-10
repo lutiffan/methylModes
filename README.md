@@ -1,6 +1,6 @@
 # methylModes
 
-A computationally efficient R package for detecting multimodal distributions in DNA methylation data,  implementing a peak detection algorithm based on kernel density estimation. MethylModes wraps a Shiny web application for interactive analysis and batch processing functions for genome-scale epigenetic studies. 
+A computationally efficient R package for detecting multimodal distributions in DNA methylation data,  implementing a peak detection algorithm based on kernel density estimation. MethylModes wraps a Shiny application for interactive analysis and includes batch processing functionality for genome-scale epigenetic studies. 
 
 ## Overview
 
@@ -19,11 +19,10 @@ MethylModes analyzes DNA methylation array data. It identifies probes for which 
 # Install from GitHub (if available)
 if (!require("devtools")) install.packages("devtools")
 devtools::install_github("lutiffan/methylModes")
+
+# Verify installation by checking file location
+system.file(package="methylModes")
 ```
-
-### Install Dependencies
-
-The package will automatically install dependencies.
 
 ## Running the Shiny Application
 
@@ -43,8 +42,6 @@ runMethylModesApp()
 # Navigate to the package directory and run
 shiny::runApp("inst/shiny")
 
-# Verify installation by checking file location
-system.file(package="methylModes")
 ```
 
 ## Using the Test Dataset
@@ -57,7 +54,7 @@ data(toyMultimodalData)
 
 # View the dataset structure
 str(toyMultimodalData)
-dim(toyMultimodalData)  # 500 probes × 800 samples
+dim(toyMultimodalData)  # 10000 probes × 800 samples
 
 # Access the data
 head(toyMultimodalData)
@@ -65,7 +62,7 @@ head(toyMultimodalData)
 
 ### Toy Dataset Description
 
-- **Size**: 500 probes × 800 samples
+- **Size**: 10,000 probes × 800 samples
 - **Format**: Matrix with values ranging from 0 to 1, drawn from a Gaussian mixture distribution
 - **Probe IDs**: test1 through test500
 - **Sample IDs**: "subject1" through "subject800"
@@ -73,9 +70,9 @@ head(toyMultimodalData)
 
 ### Using Test Data in the Shiny App
 
-0. Check package file locations by running system.file(package="methylModes")
+0. Find package file locations by running system.file(package="methylModes")
 1. Launch the Shiny app using `runMethylModesApp()`
-2. In the "Get Started" section, upload the included toy data by clicking "Browse" and navigating to methylModes/data
+2. In the "Get Started" section, locate the included toy data by clicking "Browse," navigating to the package directory, and opening the "data" directory
 3. Select toyMultimodalData.rda
 4. You can then run analyses on individual probes or perform batch processing
 
@@ -129,12 +126,10 @@ The package includes several annotation datasets:
 
 ## Citation
 
-If you use methylModes in your research, please cite:
+If you use methylModes in your research, please cite us using:
 
-```
-Luo, T.S., LeFaive, J., Dou, J., Bakulski, K.M., Ware, E.B., & Zawistowski, M. (2025). 
-methylModes: Computationally Efficient Detection of Multi-Modal Distributions in DNA Methylation Data. 
-R package version 1.0.
+```r
+citation("methylModes")
 ```
 
 ## Support
