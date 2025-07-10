@@ -4,7 +4,7 @@
 \alias{methylModes}
 \title{Detect Modes in DNA Methylation Data}
 \usage{
-methylModes::methylModes(
+methylModes(
   row.data = NULL,
   bandwidthType = NA,
   numBreaks = 500,
