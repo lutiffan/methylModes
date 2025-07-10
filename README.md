@@ -64,7 +64,7 @@ head(toyMultimodalData)
 
 - **Size**: 10,000 probes × 800 samples
 - **Format**: Matrix with values ranging from 0 to 1, drawn from a Gaussian mixture distribution
-- **Probe IDs**: test1 through test500
+- **Probe IDs**: First 10000 from IlluminaManifest450k IlmnID column ("cg00035864" ... "cg23571457")
 - **Sample IDs**: "subject1" through "subject800"
 - **Purpose**: Verify Shiny app functionality with multimodal distributions
 

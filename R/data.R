@@ -71,9 +71,9 @@
 #' this data is intended to verify functionality of the Shiny app.
 #' Generated using a Gaussian mixture model.
 #' 
-#' @format A matrix with 500 rows and 800 columns:
+#' @format A matrix with 10000 rows and 800 columns:
 #' \describe{
-#'   \item{rows}{Probe IDs (test1 through test500)}
+#'   \item{rows}{Probe IDs (first 10000 from IlluminaManifest450k IlmnID column)}
 #'   \item{columns}{Sample IDs (subject1 through subject800)}
 #'   \item{values}{Beta values between 0 and 1}
 #' }

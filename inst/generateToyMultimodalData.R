@@ -60,7 +60,8 @@ generate_gaussian_mixture_row <- function(num_cols) {
   row <- pmax(0, pmin(1, row))
   return(row)
 }
-
+library(methylModes)
+# Get probe IDs from IlluminaManifest450k so we can test annotations in the Shiny app
 data("IlluminaManifest450k", package = "methylModes", envir = environment())
 # Generate the matrix
 gaussian_mixture_matrix <- t(replicate(num_rows, generate_gaussian_mixture_row(num_cols)))
