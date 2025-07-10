@@ -105,7 +105,7 @@ cg00000108    0.78    0.81    0.79
 cg00000109    0.23    0.19    0.25
 ```
 
-## Available Datasets
+## Methylation Array Annotation Datasets
 
 The package includes several annotation datasets:
 
