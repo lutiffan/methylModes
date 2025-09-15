@@ -14,10 +14,13 @@ MethylModes analyzes DNA methylation array data. It identifies probes for which 
 - RStudio (recommended for interactive use)
 
 ### Install methylModes
+```r
+# First ensure that devtools is installed
+if (!require("devtools")) install.packages("devtools")
+```
 
 ```r
 # Install from GitHub (if available)
-if (!require("devtools")) install.packages("devtools")
 devtools::install_github("lutiffan/methylModes")
 
 # Verify installation by checking file location
