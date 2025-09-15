@@ -14,6 +14,8 @@ MethylModes analyzes DNA methylation array data. It identifies probes for which 
 - RStudio (recommended for interactive use)
 
 ### Install methylModes
+
+#### Method 1: using devtools
 ```r
 # First ensure that devtools is installed
 if (!require("devtools")) install.packages("devtools")
@@ -26,6 +28,12 @@ devtools::install_github("lutiffan/methylModes")
 # Verify installation by checking file location
 system.file(package="methylModes")
 ```
+#### Method 2 (Linux/Mac only): run bash script
+
+1. Download the script (install_methylModes.sh) directly from this Github repo
+2. Open a terminal window and navigate to the directory where you installed the script
+3. Run `bash install_methylModes.sh`
+4. The script will alert you of missing requirements, including minimum R version and compilers.
 
 ## Running the Shiny Application
 
