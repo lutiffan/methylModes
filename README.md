@@ -10,7 +10,7 @@ MethylModes analyzes DNA methylation array data. It identifies probes for which 
 
 ### Prerequisites
 
-- R version 3.5 or higher
+- R version 4.0 or higher
 - RStudio (recommended for interactive use)
 
 ### Install methylModes
