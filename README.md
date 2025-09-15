@@ -20,7 +20,7 @@ if (!require("devtools")) install.packages("devtools")
 ```
 
 ```r
-# Install from GitHub (if available)
+# Install from GitHub
 devtools::install_github("lutiffan/methylModes")
 
 # Verify installation by checking file location
