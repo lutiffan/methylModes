@@ -54,5 +54,5 @@ Suggests:
     MASS (>= 7.3.64)
 VignetteBuilder: knitr
 Depends: 
-    R (>= 3.5)
+    R (>= 4.0)
 LazyData: false
