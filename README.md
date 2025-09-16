@@ -94,7 +94,7 @@ head(toyMultimodalData)
 
 ### Using Test Data in the Shiny App
 
-0. Find package file locations by running system.file(package="methylModes")
+0. Find package file locations by running `system.file(package="methylModes")`
 1. Launch the Shiny app using `runMethylModesApp()`
 2. In the "Get Started" section, locate the included toy data by clicking "Browse," navigating to the package directory, and opening the "data" directory
 3. Select toyMultimodalData.rda
