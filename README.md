@@ -37,7 +37,9 @@ system.file(package="methylModes")
 
 #### Troubleshooting Suggestions
 
-Windows: unlike Mac and Linux users, Windows users need to ensure that RTools is installed so they can compile C, C++, or Fortran source code.
+* We have found during testing that when using `devtools::install_github()`, when prompted to update package dependencies, skipping updates can result in the installation becoming stuck indefinitely. Selecting option "1: All" and allowing all packages to update may resolve the issue.
+
+* Windows: unlike Mac and Linux users, Windows users need to ensure that RTools is installed so they can compile C, C++, or Fortran source code.
 Check for RTools by running
 ```r
 if (!require("pkgbuild")) install.packages("pkgbuild")
@@ -45,7 +47,7 @@ find_rtools()
 ```
 If you don't have it, install it from here: [Toolchains for building R and R packages from source on Windows](https://cran.r-project.org/bin/windows/Rtools/)
 
-Mac: ensure that XCode command line tools is installed. Open Terminal and run `xcode-select --version`.
+* Mac: ensure that XCode command line tools is installed. Open Terminal and run `xcode-select --version`.
 If no version is found, [here are instructions to install it.](https://www.freecodecamp.org/news/install-xcode-command-line-tools/)
 
 ## Running the Shiny Application
