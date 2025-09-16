@@ -35,6 +35,19 @@ system.file(package="methylModes")
 3. Run `bash install_methylModes.sh`
 4. The script will alert you of missing requirements, including minimum R version and compilers.
 
+#### Troubleshooting Suggestions
+
+Windows: unlike Mac and Linux users, Windows users need to ensure that RTools is installed so they can compile C, C++, or Fortran source code.
+Check for RTools by running
+```r
+if (!require("pkgbuild")) install.packages("pkgbuild")
+find_rtools()
+```
+If you don't have it, install it from here: [Toolchains for building R and R packages from source on Windows](https://cran.r-project.org/bin/windows/Rtools/)
+
+Mac: ensure that XCode command line tools is installed. Open Terminal and run `xcode-select --version`.
+If no version is found, [here are instructions to install it.](https://www.freecodecamp.org/news/install-xcode-command-line-tools/)
+
 ## Running the Shiny Application
 
 ### Method 1: Using the Package Function
