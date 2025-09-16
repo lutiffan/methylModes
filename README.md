@@ -20,7 +20,7 @@ MethylModes analyzes DNA methylation array data. It identifies probes for which 
 # First ensure that devtools is installed
 if (!require("devtools")) install.packages("devtools")
 ```
-
+Make sure to run the above code by itself, and that the installation is successful before trying to execute any other lines of code.
 ```r
 # Install from GitHub
 devtools::install_github("lutiffan/methylModes")
