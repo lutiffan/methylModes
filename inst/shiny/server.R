@@ -22,6 +22,7 @@ function(input, output) {
       objname <- load(input$betaFile$datapath)
       betas <- get(objname)
     } else if (fileType == "qs") {
+      library(qs)
       betas <- qread(file = input$betaFile$datapath)
     } else {
       warning("Invalid file type.")
@@ -387,6 +388,7 @@ function(input, output) {
       objname <- load(input$peakSummaryFile$datapath)
       peakSummary <- get(objname)
     } else if (fileType == "qs") {
+      library(qs)
       peakSummary <- qread(file = input$peakSummaryFile$datapath)
     } else {
       warning("Invalid file type.")

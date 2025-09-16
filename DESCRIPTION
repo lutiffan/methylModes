@@ -46,11 +46,8 @@ Imports:
     doParallel (>= 1.0.17),
     progress (>= 1.2.3),
     doFuture (>= 1.1.2),
-    qs,
 Suggests:
-    testthat (>= 3.2.2),
-    knitr (>= 1.49),
-    rmarkdown (>= 2.29),
+    qs,
     MASS (>= 7.3.64)
 VignetteBuilder: knitr
 Depends: 
