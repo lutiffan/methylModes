@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/680979978.svg)](https://doi.org/10.5281/zenodo.17448517)
+
 # methylModes
 
 A computationally efficient R package for detecting multimodal distributions in DNA methylation data,  implementing a peak detection algorithm based on kernel density estimation. MethylModes wraps a Shiny application for interactive analysis and includes batch processing functionality for genome-scale epigenetic studies. 
