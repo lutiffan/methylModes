@@ -40,9 +40,6 @@ Imports:
     DT (>= 0.33),
     data.table (>= 1.15.4),
     dplyr (>= 1.1.4),
-    foreach (>= 1.5.2),
-    iterators (>= 1.0.14),
-    parallelly (>= 1.38.0),
     doParallel (>= 1.0.17),
     progress (>= 1.2.3),
     doFuture (>= 1.0.1),
@@ -54,5 +51,8 @@ Suggests:
     MASS (>= 7.3.64)
 VignetteBuilder: knitr
 Depends: 
-    R (>= 3.5)
+    R (>= 3.5),
+    parallelly (>= 1.45.1),
+    foreach (>= 1.5.2),
+    iterators (>= 1.0.14)
 LazyData: false
