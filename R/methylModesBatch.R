@@ -90,7 +90,7 @@ methylModesBatch <- function(betas = NULL,
   #                        "peakVariance" = vector(mode = "list"))
   
   # Make new cluster
-  cl <- parallelly::makeClusterPSOCK(availableCores(omit = 1), autoStop = TRUE)
+  cl <- parallelly::makeClusterPSOCK(parallelly::availableCores(omit = 1), autoStop = TRUE)
   
   # Ensure the cluster is stopped even if the function exits because of an error
   # on.exit(stopCluster(cl), add = TRUE)
