@@ -38,18 +38,18 @@ Imports:
     ggplot2 (>= 4.0.0),
     plotly (>= 4.11.0),
     DT (>= 0.34),
-    data.table (>= 1.17.8),
     dplyr (>= 1.1.4),
-    doParallel (>= 1.0.17),
-    progress (>= 1.2.3),
-    doFuture (>= 1.1.2),
+    foreach (>= 1.5.2),
+    iterators (>= 1.0.14)
 Suggests:
     qs,
     MASS (>= 7.3.64)
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.2.2),
-    parallelly (>= 1.45.1),
-    foreach (>= 1.5.2),
-    iterators (>= 1.0.14)
+    data.table (>= 1.17.8),
+    doParallel (>= 1.0.17),
+    doFuture (>= 1.1.2),
+    parallelly (>= 1.45.1)
+
 LazyData: false
