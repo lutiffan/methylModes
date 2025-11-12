@@ -79,7 +79,7 @@ methylModes <- function(row.data = NULL,
   # Step 1: Smooth a histogram of the data
   probeDensityEst <- density(row.data, from = 0, to = 1, n = numBreaks, 
                              adjust = densityAdjust, bw = bandwidth, 
-                             kernel = kernelType)
+                             kernel = kernelType, na.rm = TRUE)
   
   # # Step 1.5: use isZero to check if floating point values are close to zero
   # probeDensityEst$y[isZero(probeDensityEst$y)] <- 0
