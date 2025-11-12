@@ -118,7 +118,7 @@ methylModesBatch <- function(betas = NULL,
     detected <- foundPeaks$detected
     
     # Edge case where less than 2 samples is not NA
-    if (is.na(detected)) {
+    if ( (length(detected) == 1) & is.na(detected)) {
       return(data.table("probeName" = rownames(probe),
                  "numPeaks" = NA, 
                  "meanBeta" = NA,
