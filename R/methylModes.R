@@ -75,9 +75,9 @@ methylModes <- function(row.data = NULL,
     row.data <- row.data[!is.na(row.data)]
     # Edge case where too many samples are NA
     if(length(row.data) < 2) {
-      list("detected" = NA, "probeDensityEst" = NA,
+      return(list("detected" = NA, "probeDensityEst" = NA,
            "nearCutoffPropSample" = NA,
-           "nearCutoffPeakDistance" = NA)
+           "nearCutoffPeakDistance" = NA))
     }
   }
 
