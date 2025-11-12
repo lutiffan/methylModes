@@ -51,5 +51,4 @@ Depends:
     doParallel (>= 1.0.17),
     doFuture (>= 1.1.2),
     parallelly (>= 1.45.1)
-
 LazyData: false
