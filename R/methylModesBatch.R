@@ -116,6 +116,19 @@ methylModesBatch <- function(betas = NULL,
                               densityAdjust = densityAdjust,
                               pushToZero = pushToZero)
     detected <- foundPeaks$detected
+    
+    # Edge case where less than 2 samples is not NA
+    if (is.na(detected)) {
+      return(data.table("probeName" = rownames(probe),
+                 "numPeaks" = NA, 
+                 "meanBeta" = NA,
+                 "peakLocations" = NA,
+                 "leftMin" = NA,
+                 "rightMin" = NA,
+                 "proportionSample" = NA,
+                 "peakVariance" = NA))
+    }
+    
     probeDensityEst <- foundPeaks$probeDensityEst
     
     # Step 5: Calculate summary statistics
