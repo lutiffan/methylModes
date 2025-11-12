@@ -69,6 +69,17 @@ methylModes <- function(row.data = NULL,
                        pushToZero = 1e-6,
                        proportionSample = 0.01,
                        peakDistance = 0.10) {
+  
+  # Handle NAs in data
+  if(any(is.na(row.data))) {
+    row.data <- row.data[!is.na(row.data)]
+    # Edge case where too many samples are NA
+    if(length(row.data) < 2) {
+      list("detected" = NA, "probeDensityEst" = NA,
+           "nearCutoffPropSample" = NA,
+           "nearCutoffPeakDistance" = NA)
+    }
+  }
 
   if (is.na(bandwidthType)) {
     bandwidth = "nrd0"
