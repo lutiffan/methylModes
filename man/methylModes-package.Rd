@@ -42,6 +42,9 @@ The package includes a comprehensive Shiny application for interactive analysis:
 }
 }
 
+\references{
+For more information, see the package vignette: \code{vignette("methylModes")}
+}
 \author{
 T. Sophia Luo \email{lutiffan@umich.edu}
 
