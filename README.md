@@ -52,6 +52,8 @@ If you don't have it, install it from here: [Toolchains for building R and R pac
 * Mac: ensure that XCode command line tools is installed. Open Terminal and run `xcode-select --version`.
 If no version is found, [here are instructions to install it.](https://www.freecodecamp.org/news/install-xcode-command-line-tools/)
 
+* If, after installing the package, you see an error like "Error in fetch(key) : lazy-load database ... methylModes/help/methylModes.rdb' is corrupt" then try restarting your R session and reloading the package.
+
 ## Running the Shiny Application
 
 ### Method 1: Using the Package Function

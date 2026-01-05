@@ -825,11 +825,17 @@ peakSummaryPostProcessing <- function(peakSummary, varianceThreshold, hypoThresh
       # Get the peak summary data
       peakSummary <- getMultiProbeSummary()
       
+      # If list-containing columns haven't already been "expanded," do it now
+      if (!("proportionSample_1" %in% colnames(peakSummary))) {
+        peakSummary <- methylModes::expandPeakDataCols(peakSummary)
+      }
+      
       # Add annotation info columns if available
       annotationData <- getAnnotationLocal()
       if (!is.null(annotationData)) {
         # Convert to data.table for consistent operations
         peakSummary <- as.data.table(peakSummary)
+
         annotationData <- as.data.table(annotationData)
         
         # Select only the columns we need
